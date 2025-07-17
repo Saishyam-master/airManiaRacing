@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Air Mania Racing - Take Flight</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Exo 2', sans-serif;
+            background: linear-gradient(135deg, #0c1445 0%, #1a237e 25%, #283593 50%, #3949ab 75%, #5c6bc0 100%);
+            overflow: hidden;
+            color: white;
+            position: relative;
+            height: 100vh;
+        }
+
+        /* Animated background elements */
+        .background-animation {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 1;
+        }
+
+        .cloud {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50px;
+            animation: float 20s infinite linear;
+        }
+
+        .cloud:nth-child(1) {
+            width: 100px;
+            height: 40px;
+            top: 20%;
+            left: -100px;
+            animation-duration: 25s;
+        }
+
+        .cloud:nth-child(2) {
+            width: 80px;
+            height: 30px;
+            top: 40%;
+            left: -80px;
+            animation-duration: 30s;
+            animation-delay: -10s;
+        }
+
+        .cloud:nth-child(3) {
+            width: 120px;
+            height: 50px;
+            top: 60%;
+            left: -120px;
+            animation-duration: 35s;
+            animation-delay: -20s;
+        }
+
+        @keyframes float {
+            from {
+                transform: translateX(-200px);
+            }
+            to {
+                transform: translateX(calc(100vw + 200px));
+            }
+        }
+
+        /* Stars */
+        .stars {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                radial-gradient(2px 2px at 20px 30px, white, transparent),
+                radial-gradient(2px 2px at 40px 70px, white, transparent),
+                radial-gradient(1px 1px at 90px 40px, white, transparent),
+                radial-gradient(1px 1px at 130px 80px, white, transparent),
+                radial-gradient(2px 2px at 160px 30px, white, transparent);
+            background-repeat: repeat;
+            background-size: 200px 100px;
+            animation: twinkle 3s ease-in-out infinite alternate;
+        }
+
+        @keyframes twinkle {
+            from { opacity: 0.3; }
+            to { opacity: 0.8; }
+        }
+
+        /* Main container */
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            z-index: 10;
+        }
+
+        /* UI Elements */
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            font-size: 16px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        #ui.visible {
+            opacity: 1;
+        }
+
+        /* Starting screen */
+        #startScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(5px);
+        }
+
+        .logo-container {
+            text-align: center;
+            margin-bottom: 40px;
+            animation: logoGlow 3s ease-in-out infinite alternate;
+        }
+
+        @keyframes logoGlow {
+            from { 
+                text-shadow: 0 0 20px rgba(255, 255, 255, 0.5),
+                           0 0 40px rgba(156, 204, 255, 0.3),
+                           0 0 60px rgba(156, 204, 255, 0.2);
+            }
+            to { 
+                text-shadow: 0 0 30px rgba(255, 255, 255, 0.8),
+                           0 0 60px rgba(156, 204, 255, 0.5),
+                           0 0 90px rgba(156, 204, 255, 0.3);
+            }
+        }
+
+        #gameTitle {
+            font-family: 'Orbitron', monospace;
+            font-size: clamp(3rem, 8vw, 6rem);
+            font-weight: 900;
+            background: linear-gradient(45deg, #ffffff, #9ccfff, #64b5f6, #42a5f5);
+            background-size: 400% 400%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradientShift 4s ease-in-out infinite;
+            letter-spacing: 3px;
+            margin-bottom: 10px;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .subtitle {
+            font-family: 'Exo 2', sans-serif;
+            font-size: clamp(1rem, 3vw, 1.5rem);
+            font-weight: 300;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 50px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .game-controls {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 30px 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+            margin-bottom: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .controls-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 1.2rem;
+            color: #64b5f6;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            font-size: 0.9rem;
+        }
+
+        .control-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .control-key {
+            font-family: 'Orbitron', monospace;
+            font-weight: 700;
+            color: #42a5f5;
+            background: rgba(66, 165, 245, 0.2);
+            padding: 4px 8px;
+            border-radius: 5px;
+            font-size: 0.8rem;
+        }
+
+        /* Start button */
+        #startButton {
+            background: linear-gradient(45deg, #1976d2, #42a5f5, #64b5f6);
+            background-size: 300% 300%;
+            color: white;
+            border: none;
+            padding: 20px 50px;
+            font-family: 'Orbitron', monospace;
+            font-size: 1.3rem;
+            font-weight: 700;
+            border-radius: 50px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            box-shadow: 0 15px 35px rgba(25, 118, 210, 0.4);
+            animation: buttonPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes buttonPulse {
+            0%, 100% { 
+                transform: scale(1);
+                box-shadow: 0 15px 35px rgba(25, 118, 210, 0.4);
+            }
+            50% { 
+                transform: scale(1.05);
+                box-shadow: 0 20px 45px rgba(25, 118, 210, 0.6);
+            }
+        }
+
+        #startButton:hover {
+            background: linear-gradient(45deg, #1565c0, #1976d2, #42a5f5);
+            transform: translateY(-3px);
+            box-shadow: 0 25px 50px rgba(25, 118, 210, 0.6);
+        }
+
+        #startButton:active {
+            transform: translateY(-1px);
+            box-shadow: 0 15px 30px rgba(25, 118, 210, 0.5);
+        }
+
+        #startButton::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        #startButton:hover::before {
+            left: 100%;
+        }
+
+        /* Aircraft icon */
+        .aircraft-icon {
+            position: absolute;
+            font-size: 2rem;
+            opacity: 0.3;
+            animation: fly 15s infinite linear;
+        }
+
+        .aircraft-icon:nth-child(1) {
+            top: 15%;
+            left: -50px;
+            animation-duration: 20s;
+        }
+
+        .aircraft-icon:nth-child(2) {
+            top: 70%;
+            left: -50px;
+            animation-duration: 25s;
+            animation-delay: -8s;
+        }
+
+        @keyframes fly {
+            from {
+                transform: translateX(-100px) rotate(15deg);
+            }
+            to {
+                transform: translateX(calc(100vw + 100px)) rotate(15deg);
+            }
+        }
+
+        /* Hidden class */
+        .hidden {
+            display: none !important;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .game-controls {
+                padding: 20px;
+                margin: 0 20px 30px;
+            }
+
+            .controls-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+
+            #startButton {
+                padding: 15px 35px;
+                font-size: 1.1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="background-animation">
+        <div class="stars"></div>
+        <div class="cloud"></div>
+        <div class="cloud"></div>
+        <div class="cloud"></div>
+        <div class="aircraft-icon">✈️</div>
+        <div class="aircraft-icon">🛩️</div>
+    </div>
+
+    <div id="gameContainer">
+        <div id="ui">
+            <div id="speed">Speed: 0 km/h</div>
+            <div id="altitude">Altitude: 0 m</div>
+            <div id="score">Score: 0</div>
+        </div>
+
+        <div id="startScreen">
+            <div class="logo-container">
+                <h1 id="gameTitle">AIR MANIA</h1>
+                <p class="subtitle">Racing Through The Skies</p>
+            </div>
+
+            <div class="game-controls">
+                <h3 class="controls-title">Flight Controls</h3>
+                <div class="controls-grid">
+                    <div class="control-item">
+                        <span>Accelerate</span>
+                        <span class="control-key">W</span>
+                    </div>
+                    <div class="control-item">
+                        <span>Decelerate</span>
+                        <span class="control-key">S</span>
+                    </div>
+                    <div class="control-item">
+                        <span>Turn Left</span>
+                        <span class="control-key">A</span>
+                    </div>
+                    <div class="control-item">
+                        <span>Turn Right</span>
+                        <span class="control-key">D</span>
+                    </div>
+                    <div class="control-item">
+                        <span>Boost</span>
+                        <span class="control-key">Space</span>
+                    </div>
+                </div>
+            </div>
+
+            <button id="startButton">
+                <span>🚀 Take Flight</span>
+            </button>
+        </div>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>
