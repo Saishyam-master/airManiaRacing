@@ -114,7 +114,8 @@ git branch -d feature/your-feature-name
 - [x] Camera following system
 - [x] UI elements (speed, altitude, score)
 
-### Phase 2: Professional Racing Elements (Next)
+### Phase 2: Professional Racing Elements (In Progress)
+- [x] Created feature branch for Trackmania-style racing
 - [ ] Trackmania-style race track with clean geometry
 - [ ] Checkpoint gates with visual feedback
 - [ ] Lap timing system with professional UI
@@ -197,5 +198,5 @@ airMania/
 
 ---
 
-*Last updated: July 16, 2025*
-*Next update: After implementing enhanced flight physics*
+*Last updated: July 17, 2025*
+*Next update: After implementing Trackmania-style racing track*
