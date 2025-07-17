@@ -169,8 +169,11 @@ airMania/
 ├── main.js            # Game logic and Three.js setup
 ├── package.json       # Dependencies and scripts
 ├── .gitignore         # Git ignore rules
-└── docs/
-    └── DEVELOPMENT.md # This documentation
+├── visuals/           # Visual assets and screenshots
+└── docs/              # Project documentation
+    ├── README.md      # Documentation index
+    ├── DEVELOPMENT.md # Development workflow and progress
+    └── CODERABBIT_QA.md # CodeRabbit review tracking
 ```
 
 ## 📝 Blog Documentation Notes
