@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 // Game state
 let scene, camera, renderer, aircraft;
@@ -8,6 +9,10 @@ let speed = 0;
 let altitude = 100;
 let score = 0;
 
+// Jet display state
+let jetDisplayScene, jetDisplayCamera, jetDisplayRenderer, jetModel;
+let jetDisplayActive = false;
+
 // Game settings
 const SPEED_INCREMENT = 0.5;
 const MAX_SPEED = 200;
@@ -15,7 +20,10 @@ const BOOST_MULTIPLIER = 2;
 
 // Initialize the game
 function init() {
-    // Create scene
+    // Initialize jet display first
+    initJetDisplay();
+
+    // Create main game scene
     scene = new THREE.Scene();
     scene.fog = new THREE.Fog(0x87ceeb, 500, 2000);
 
@@ -189,6 +197,9 @@ function setupUI() {
 function startGame() {
     gameStarted = true;
     
+    // Stop jet display animation
+    stopJetDisplay();
+    
     // Hide start screen
     document.getElementById('startScreen').classList.add('hidden');
     
@@ -291,6 +302,218 @@ function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    
+    // Also resize jet display
+    resizeJetDisplay();
+}
+
+// Initialize 3D jet display for start screen
+function initJetDisplay() {
+    const canvas = document.getElementById('jetCanvas');
+    const loadingElement = document.getElementById('jetLoading');
+    
+    // Create separate scene for jet display
+    jetDisplayScene = new THREE.Scene();
+    // No background - transparent
+    jetDisplayScene.background = null;
+    
+    // Create camera for jet display
+    jetDisplayCamera = new THREE.PerspectiveCamera(50, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
+    jetDisplayCamera.position.set(0, 1, 12);
+    jetDisplayCamera.lookAt(0, 0, 0);
+    
+    // Create renderer for jet display
+    jetDisplayRenderer = new THREE.WebGLRenderer({ 
+        canvas: canvas, 
+        antialias: true, 
+        alpha: true // Enable transparency
+    });
+    jetDisplayRenderer.setSize(canvas.clientWidth, canvas.clientHeight);
+    jetDisplayRenderer.setClearColor(0x000000, 0); // Fully transparent background
+    jetDisplayRenderer.shadowMap.enabled = true;
+    jetDisplayRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    
+    // Simple lighting for proper color visibility
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    jetDisplayScene.add(ambientLight);
+    
+    // Main spotlight from front-right
+    const keyLight = new THREE.SpotLight(0xffffff, 1.5);
+    keyLight.position.set(8, 8, 8);
+    keyLight.angle = Math.PI / 3;
+    keyLight.penumbra = 0.3;
+    keyLight.decay = 2;
+    keyLight.distance = 25;
+    keyLight.castShadow = true;
+    keyLight.target.position.set(0, 0, 0);
+    jetDisplayScene.add(keyLight);
+    jetDisplayScene.add(keyLight.target);
+    
+    // Fill light from left
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
+    fillLight.position.set(-5, 3, 5);
+    jetDisplayScene.add(fillLight);
+    
+    // Rim light from behind
+    const rimLight = new THREE.DirectionalLight(0x9ccfff, 0.3);
+    rimLight.position.set(0, 2, -8);
+    jetDisplayScene.add(rimLight);
+    
+    // Load GLB model
+    loadJetModel(loadingElement);
+    
+    jetDisplayActive = true;
+    animateJetDisplay();
+}
+
+function loadJetModel(loadingElement) {
+    const loader = new GLTFLoader();
+    
+    // Try to load the GLB file
+    loader.load(
+        './visuals/airManiaJet.glb', // Using the actual GLB file
+        function(gltf) {
+            jetModel = gltf.scene;
+            
+            // Much smaller scale to see the entire plane clearly
+            jetModel.scale.set(0.8, 0.8, 0.8); // Much smaller - from 2 to 0.8
+            jetModel.position.set(0, 0, 0); // Centered
+            
+            // Enable shadows and preserve original colors
+            jetModel.traverse(function(child) {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    
+                    // Preserve original colors
+                    if (child.material) {
+                        child.material.metalness = 0.3;
+                        child.material.roughness = 0.7;
+                        child.material.envMapIntensity = 0.5;
+                    }
+                }
+            });
+            
+            jetDisplayScene.add(jetModel);
+            
+            // Immediately hide loading indicator and prevent it from showing again
+            loadingElement.style.display = 'none';
+            
+            console.log('Modern jet loaded successfully!');
+        },
+        function(progress) {
+            const percentage = Math.round((progress.loaded / progress.total * 100));
+            console.log('Loading progress:', percentage + '%');
+            
+            // Update loading text with progress
+            const loadingText = loadingElement.querySelector('div:last-child');
+            if (loadingText) {
+                loadingText.textContent = `Loading Modern Jet... ${percentage}%`;
+            }
+        },
+        function(error) {
+            console.log('Error loading jet model:', error);
+            // Fallback: create a simple jet representation
+            createFallbackJet(loadingElement);
+        }
+    );
+}
+
+function createFallbackJet(loadingElement) {
+    console.log('Creating fallback jet model...');
+    
+    const jetGroup = new THREE.Group();
+    
+    // Modern fuselage (smaller scale)
+    const fuselageGeometry = new THREE.CylinderGeometry(0.1, 0.2, 2, 12);
+    const fuselageMaterial = new THREE.MeshPhysicalMaterial({ 
+        color: 0x1976d2,
+        metalness: 0.3,
+        roughness: 0.7
+    });
+    const fuselage = new THREE.Mesh(fuselageGeometry, fuselageMaterial);
+    fuselage.rotation.z = Math.PI / 2;
+    fuselage.castShadow = true;
+    jetGroup.add(fuselage);
+    
+    // Delta wings (smaller)
+    const wingGeometry = new THREE.ConeGeometry(1, 2.5, 3);
+    const wingMaterial = new THREE.MeshPhysicalMaterial({ 
+        color: 0x42a5f5,
+        metalness: 0.3,
+        roughness: 0.7
+    });
+    const wings = new THREE.Mesh(wingGeometry, wingMaterial);
+    wings.rotation.x = Math.PI / 2;
+    wings.rotation.z = Math.PI / 2;
+    wings.position.z = -0.3;
+    wings.castShadow = true;
+    jetGroup.add(wings);
+    
+    // Cockpit (smaller)
+    const cockpitGeometry = new THREE.SphereGeometry(0.15, 8, 6);
+    const cockpitMaterial = new THREE.MeshPhysicalMaterial({ 
+        color: 0x263238,
+        metalness: 0.5,
+        roughness: 0.5
+    });
+    const cockpit = new THREE.Mesh(cockpitGeometry, cockpitMaterial);
+    cockpit.position.x = 0.8;
+    cockpit.position.y = 0.1;
+    cockpit.castShadow = true;
+    jetGroup.add(cockpit);
+    
+    // Scale the entire group to match the GLB scale
+    jetGroup.scale.set(0.8, 0.8, 0.8);
+    
+    jetModel = jetGroup;
+    jetDisplayScene.add(jetModel);
+    
+    // Hide loading indicator
+    loadingElement.style.display = 'none';
+}
+
+function animateJetDisplay() {
+    if (!jetDisplayActive) return;
+    
+    requestAnimationFrame(animateJetDisplay);
+    
+    // Simple plane rotation
+    if (jetModel) {
+        const time = Date.now() * 0.001;
+        
+        // Smooth Y-axis rotation 
+        jetModel.rotation.y += 0.01;
+        
+        // Very subtle floating motion
+        jetModel.position.y = Math.sin(time * 0.8) * 0.05;
+        
+        // Minimal banking
+        jetModel.rotation.z = Math.sin(time * 0.6) * 0.02; 
+        jetModel.rotation.x = Math.sin(time * 0.4) * 0.01; 
+    }
+    
+    // Render the jet display
+    if (jetDisplayRenderer && jetDisplayScene && jetDisplayCamera) {
+        jetDisplayRenderer.render(jetDisplayScene, jetDisplayCamera);
+    }
+}
+
+function stopJetDisplay() {
+    jetDisplayActive = false;
+}
+
+// Handle window resize for jet display
+function resizeJetDisplay() {
+    if (jetDisplayRenderer && jetDisplayCamera) {
+        const canvas = document.getElementById('jetCanvas');
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        
+        jetDisplayCamera.aspect = width / height;
+        jetDisplayCamera.updateProjectionMatrix();
+        jetDisplayRenderer.setSize(width, height);
+    }
 }
 
 // Initialize the game when the script loads
