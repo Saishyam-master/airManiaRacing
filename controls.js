@@ -1,31 +1,26 @@
-import * as THREE from 'three';
-
 /**
  * Simple and reliable aircraft controls
  */
 export class AircraftControls {
     constructor() {
         this.keys = {};
+        this.debug = false; // Debug flag for console logging
         this.setupEventListeners();
         
-        // Control sensitivity
-        this.pitchSensitivity = 0.01;
-        this.yawSensitivity = 0.01;
-        this.rollSensitivity = 0.02;
-        this.throttleSensitivity = 0.02;
+        // Control sensitivity values - now used in input calculations
+        this.pitchSensitivity = 0.3;
+        this.yawSensitivity = 1.0;
+        this.rollSensitivity = 0.5;
+        this.throttleSensitivity = 1.0;
         
-        console.log('Aircraft controls initialized');
+        if (this.debug) console.log('Aircraft controls initialized');
     }
     
     setupEventListeners() {
-        // Make sure the page can receive keyboard focus
-        document.body.setAttribute('tabindex', '0');
-        document.body.focus();
-        
         // Keyboard event listeners
         document.addEventListener('keydown', (event) => {
             this.keys[event.code] = true;
-            console.log('Control key pressed:', event.code); // Debug
+            if (this.debug) console.log('Control key pressed:', event.code);
             
             // Prevent default for WASD and Space to avoid page scrolling
             if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space'].includes(event.code)) {
@@ -35,19 +30,21 @@ export class AircraftControls {
         
         document.addEventListener('keyup', (event) => {
             this.keys[event.code] = false;
-            console.log('Control key released:', event.code); // Debug
+            if (this.debug) console.log('Control key released:', event.code);
         });
         
-        // Also add focus events to ensure we're listening
-        window.addEventListener('focus', () => {
-            console.log('Window gained focus');
-        });
+        // Focus events for debugging only
+        if (this.debug) {
+            window.addEventListener('focus', () => {
+                console.log('Window gained focus');
+            });
+            
+            window.addEventListener('blur', () => {
+                console.log('Window lost focus');
+            });
+        }
         
-        window.addEventListener('blur', () => {
-            console.log('Window lost focus');
-        });
-        
-        console.log('Event listeners set up');
+        if (this.debug) console.log('Event listeners set up');
     }
     
     /**
@@ -65,37 +62,32 @@ export class AircraftControls {
             roll: 0
         };
         
-        // Throttle (W = forward, S = reverse/brake)
+        // Throttle (W = forward, S = reverse/brake) - apply sensitivity
         if (this.keys['KeyW']) {
-            input.throttle = 1.0 * boostMultiplier;
+            input.throttle = 1.0 * boostMultiplier * this.throttleSensitivity;
         } else if (this.keys['KeyS']) {
-            input.throttle = -0.5;
+            input.throttle = -0.5 * this.throttleSensitivity;
         }
         
-        // Pitch (W/S also affect pitch for realistic flight)
+        // Pitch (W/S also affect pitch for realistic flight) - apply sensitivity
         if (this.keys['KeyW']) {
-            input.pitch = -0.3; // Nose down for speed
+            input.pitch = -0.3 * this.pitchSensitivity; // Nose down for speed
         } else if (this.keys['KeyS']) {
-            input.pitch = 0.3; // Nose up for climb/brake
+            input.pitch = 0.3 * this.pitchSensitivity; // Nose up for climb/brake
         }
         
-        // Yaw (A/D for turning)
+        // Yaw (A/D for turning) - apply sensitivity
         if (this.keys['KeyA']) {
-            input.yaw = -1.0; // Turn left
+            input.yaw = -1.0 * this.yawSensitivity; // Turn left
         } else if (this.keys['KeyD']) {
-            input.yaw = 1.0; // Turn right
+            input.yaw = 1.0 * this.yawSensitivity; // Turn right
         }
         
-        // Roll (A/D also add banking for realistic turns)
+        // Roll (A/D for banking) - FIXED: corrected signs and apply sensitivity
         if (this.keys['KeyA']) {
-            input.roll = 0.5; // Bank left
+            input.roll = -0.5 * this.rollSensitivity; // Bank left (negative)
         } else if (this.keys['KeyD']) {
-            input.roll = -0.5; // Bank right
-        }
-        
-        // Debug: Log occasionally
-        if (Math.random() < 0.01 && (input.throttle !== 0 || input.pitch !== 0 || input.yaw !== 0 || input.roll !== 0)) {
-            console.log('Control input:', input);
+            input.roll = 0.5 * this.rollSensitivity; // Bank right (positive)
         }
         
         return input;
@@ -115,6 +107,32 @@ export class AircraftControls {
      */
     getPressedKeys() {
         return Object.keys(this.keys).filter(key => this.keys[key]);
+    }
+    
+    /**
+     * Simulate key press for testing (proper encapsulation)
+     * @param {string} keyCode - The key code to simulate
+     */
+    simulateKeyPress(keyCode) {
+        this.keys[keyCode] = true;
+        if (this.debug) console.log('Simulated key press:', keyCode);
+    }
+    
+    /**
+     * Simulate key release for testing (proper encapsulation)
+     * @param {string} keyCode - The key code to simulate
+     */
+    simulateKeyRelease(keyCode) {
+        this.keys[keyCode] = false;
+        if (this.debug) console.log('Simulated key release:', keyCode);
+    }
+    
+    /**
+     * Enable or disable debug logging
+     * @param {boolean} enabled - Whether to enable debug logging
+     */
+    setDebug(enabled) {
+        this.debug = enabled;
     }
 }
 
@@ -158,11 +176,11 @@ export function setupSimpleControls(aircraftSystem) {
         }
         if (keys.KeyA) {
             input.yaw = -yawSpeed;
-            input.roll = rollSpeed; // Bank left
+            input.roll = -rollSpeed; // FIXED: Bank left (negative)
         }
         if (keys.KeyD) {
             input.yaw = yawSpeed;
-            input.roll = -rollSpeed; // Bank right
+            input.roll = rollSpeed; // FIXED: Bank right (positive)
         }
         if (keys.Space) {
             input.throttle *= 1.5; // Boost

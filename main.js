@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Environment } from './environment.js';
 import { AircraftSystem } from './aircraft-system.js';
-import { AircraftControls, setupSimpleControls } from './controls.js';
+import { AircraftControls } from './controls.js';
 
 // Game state
 let scene, camera, renderer, aircraftSystem;
@@ -219,7 +219,7 @@ window.cameraDebug = {
 
 console.log('Camera debug available: cameraDebug.setBehind(), cameraDebug.setFront(), cameraDebug.setLeft(), cameraDebug.setRight()');
 
-// Debug controls system
+// Debug controls system with proper encapsulation
 window.controlsDebug = {
     testInput: () => {
         if (controls) {
@@ -246,10 +246,22 @@ window.controlsDebug = {
             console.log('Aircraft position:', aircraftSystem.aircraft?.position);
             console.log('Aircraft velocity:', aircraftSystem.velocity);
         }
+    },
+    enableDebug: () => {
+        if (controls) {
+            controls.setDebug(true);
+            console.log('Controls debug enabled');
+        }
+    },
+    disableDebug: () => {
+        if (controls) {
+            controls.setDebug(false);
+            console.log('Controls debug disabled');
+        }
     }
 };
 
-console.log('Controls debug available: controlsDebug.testInput(), controlsDebug.forceThrust(), controlsDebug.getAircraftStatus()');
+console.log('Controls debug available: controlsDebug.testInput(), controlsDebug.forceThrust(), controlsDebug.getAircraftStatus(), controlsDebug.enableDebug(), controlsDebug.disableDebug()');
 
 // Quick test function to verify everything is connected
 window.quickTest = function() {
@@ -264,11 +276,11 @@ window.quickTest = function() {
         const input = controls.getInputState();
         console.log('Current input:', input);
         
-        // Simulate W key press
-        controls.keys['KeyW'] = true;
+        // FIXED: Use proper encapsulation methods
+        controls.simulateKeyPress('KeyW');
         const inputWithW = controls.getInputState();
         console.log('Input with W pressed:', inputWithW);
-        controls.keys['KeyW'] = false;
+        controls.simulateKeyRelease('KeyW');
     }
     
     if (aircraftSystem) {
