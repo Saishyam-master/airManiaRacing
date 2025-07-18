@@ -16,16 +16,28 @@ export class AircraftSystem {
         
         // Flight parameters
         this.thrust = 0;
-        this.maxThrust = 2000;
-        this.drag = 0.98;
+        this.maxThrust = 10000; // Increased from 5000 for much faster movement
+        this.drag = 0.985; // Slightly reduced drag for more speed
         this.lift = 0;
-        this.gravity = -9.8;
+        this.gravity = -1.5; // Further reduced gravity for easier flight
         this.mass = 1000;
         
-        // Control parameters
-        this.pitchSensitivity = 0.02;
-        this.yawSensitivity = 0.02;
-        this.rollSensitivity = 0.03;
+        // Control parameters - realistic flight model
+        this.pitchSensitivity = 0.03; 
+        this.yawSensitivity = 0.02; // Reduced for more realistic rudder authority
+        this.rollSensitivity = 0.05; // Increased for responsive banking
+        
+        // Advanced flight dynamics
+        this.bankAngle = 0; // Current bank angle in radians
+        this.turnRate = 0; // Current turn rate
+        this.gForce = 1.0; // Current G-force
+        this.stallSpeed = 50; // Speed below which aircraft becomes unstable
+        this.maxBankAngle = Math.PI * 0.7; // Maximum safe bank angle (about 125 degrees)
+        
+        // Aerodynamic coefficients
+        this.liftCoefficient = 0.8;
+        this.dragCoefficient = 0.03;
+        this.stallAngle = Math.PI / 6; // 30 degrees angle of attack causes stall
         
         // Aircraft state
         this.isEngineOn = false;
@@ -66,15 +78,11 @@ export class AircraftSystem {
                     // Scale the aircraft much smaller for grander world appearance
                     this.aircraftModel.scale.setScalar(1); // Reduced from 3 to 1 (much smaller)
                     
-                    // Check and potentially fix the model's orientation
-                    // Some GLB models might be rotated differently than expected
+                    // Fix the model's orientation - GLB models often face the wrong way
                     console.log('Original model rotation:', this.aircraftModel.rotation);
                     
-                    // If the model appears sideways, we might need to rotate it
-                    // Uncomment one of these if the aircraft appears rotated:
-                    // this.aircraftModel.rotation.y = Math.PI; // 180 degree turn
-                    // this.aircraftModel.rotation.y = Math.PI/2; // 90 degree turn
-                    // this.aircraftModel.rotation.y = -Math.PI/2; // -90 degree turn
+                    // Rotate the model to face forward correctly
+                    this.aircraftModel.rotation.y = Math.PI/2; // 90 degree turn to face forward
                     
                     // Create aircraft group for easier manipulation
                     this.aircraft = new THREE.Group();
@@ -154,52 +162,147 @@ export class AircraftSystem {
             this.controls.pitch = input.pitch || 0;
             this.controls.yaw = input.yaw || 0;
             this.controls.roll = input.roll || 0;
+            
+            // Debug: Log when we receive significant control input
+            if (input.throttle > 0 || Math.abs(input.pitch) > 0 || Math.abs(input.yaw) > 0 || Math.abs(input.roll) > 0) {
+                console.log('Aircraft received input:', input);
+            }
         }
         
         // Calculate thrust from throttle
         this.thrust = this.controls.throttle * this.maxThrust;
         
-        // Calculate angular velocities from control inputs
+        // Realistic banking dynamics
+        this.updateBankingDynamics();
+        
+        // Debug: Log thrust calculation
+        if (this.thrust > 0) {
+            console.log('Current thrust:', this.thrust, 'Bank angle:', (this.bankAngle * 180 / Math.PI).toFixed(1), '°');
+        }
+    }
+    
+    updateBankingDynamics() {
+        const speed = this.velocity.length();
+        
+        // Roll input creates banking
+        const rollInput = this.controls.roll;
+        const targetBankAngle = rollInput * this.maxBankAngle;
+        
+        // Smooth banking transition (realistic aircraft don't snap to bank angles)
+        const bankingRate = 0.08; // How quickly aircraft can change bank angle
+        this.bankAngle += (targetBankAngle - this.bankAngle) * bankingRate;
+        
+        // Limit maximum bank angle
+        this.bankAngle = Math.max(-this.maxBankAngle, Math.min(this.maxBankAngle, this.bankAngle));
+        
+        // Banking creates turning force (this is how real aircraft turn!)
+        if (Math.abs(this.bankAngle) > 0.1 && speed > this.stallSpeed) {
+            // Turn rate is proportional to bank angle and speed
+            this.turnRate = Math.sin(this.bankAngle) * speed * 0.0008;
+            
+            // G-force increases with bank angle
+            this.gForce = 1.0 / Math.cos(this.bankAngle);
+            
+            // Apply turning moment
+            this.angularVelocity.y = this.turnRate;
+        } else {
+            this.turnRate = 0;
+            this.gForce = 1.0;
+        }
+        
+        // Adverse yaw effect - aircraft naturally yaws opposite to roll direction
+        const adverseYaw = -rollInput * 0.3;
+        
+        // Coordinated turn requires rudder input to counteract adverse yaw
+        const rudderInput = this.controls.yaw;
+        const netYaw = (rudderInput * this.yawSensitivity) + adverseYaw;
+        
+        // Apply pitch and corrected yaw
         this.angularVelocity.x = this.controls.pitch * this.pitchSensitivity;
-        this.angularVelocity.y = this.controls.yaw * this.yawSensitivity;
-        this.angularVelocity.z = this.controls.roll * this.rollSensitivity;
+        this.angularVelocity.y += netYaw; // Add to existing turn rate
+        this.angularVelocity.z = this.bankAngle * 0.5; // Bank angle affects roll rate
     }
 
     updatePhysics(deltaTime) {
         if (!this.aircraft) return;
         
-        // Get aircraft's forward direction (negative Z in local space for typical aircraft models)
+        const speed = this.velocity.length();
+        
+        // Get aircraft's forward direction 
         const forward = new THREE.Vector3(0, 0, -1);
         forward.applyQuaternion(this.aircraft.quaternion);
         
+        // Get aircraft's up direction for lift calculation
+        const up = new THREE.Vector3(0, 1, 0);
+        up.applyQuaternion(this.aircraft.quaternion);
+        
         // Apply thrust in forward direction
-        const thrustForce = forward.multiplyScalar(this.thrust / this.mass);
+        const thrustForce = forward.clone().multiplyScalar(this.thrust / this.mass);
         this.acceleration.copy(thrustForce);
         
-        // Apply gravity
-        this.acceleration.y += this.gravity;
+        // Realistic lift calculation based on airspeed and angle of attack
+        if (speed > 0) {
+            // Lift is perpendicular to forward motion and proportional to speed²
+            const liftMagnitude = speed * speed * this.liftCoefficient * 0.0001;
+            
+            // Banking reduces effective lift (realistic aerodynamics)
+            const bankingLossFactor = Math.cos(this.bankAngle);
+            const effectiveLift = liftMagnitude * bankingLossFactor;
+            
+            // Apply lift in aircraft's up direction
+            const liftForce = up.clone().multiplyScalar(effectiveLift);
+            this.acceleration.add(liftForce);
+            
+            // Banking creates horizontal turning force
+            if (Math.abs(this.bankAngle) > 0.1) {
+                const bankingForce = up.clone()
+                    .cross(forward)
+                    .multiplyScalar(liftMagnitude * Math.sin(this.bankAngle) * 0.5);
+                this.acceleration.add(bankingForce);
+            }
+        }
         
-        // Calculate lift based on speed and angle of attack
-        const speed = this.velocity.length();
-        const liftForce = speed * speed * 0.0001; // Simple lift calculation
-        this.acceleration.y += liftForce;
+        // Apply gravity (affected by G-force in turns)
+        this.acceleration.y += this.gravity * this.gForce;
+        
+        // Drag increases with speed² and banking
+        const dragMagnitude = speed * speed * this.dragCoefficient * (1 + Math.abs(this.bankAngle) * 0.5);
+        if (speed > 0) {
+            const dragForce = forward.clone().multiplyScalar(-dragMagnitude / this.mass);
+            this.acceleration.add(dragForce);
+        }
+        
+        // Stall mechanics - loss of control at low speeds
+        if (speed < this.stallSpeed && speed > 5) {
+            // Aircraft becomes unstable and tends to nose down
+            this.angularVelocity.x += (this.stallSpeed - speed) * 0.001; // Nose down tendency
+            this.angularVelocity.z += (Math.random() - 0.5) * 0.02; // Random roll
+            
+            // Reduce lift effectiveness
+            this.acceleration.y -= (this.stallSpeed - speed) * 0.02;
+        }
+        
+        // Add base upward force when throttle is applied (arcade physics component)
+        if (this.thrust > 0 && speed > this.stallSpeed * 0.5) {
+            this.acceleration.y += (this.thrust / this.mass) * 0.3; // Reduced from 0.5
+        }
         
         // Update velocity
         this.velocity.add(this.acceleration.clone().multiplyScalar(deltaTime));
         
-        // Apply drag
-        this.velocity.multiplyScalar(this.drag);
+        // Apply drag to velocity
+        this.velocity.multiplyScalar(0.995); // More realistic drag
         
         // Update position
-        this.aircraft.position.add(this.velocity.clone().multiplyScalar(deltaTime));
+        this.aircraft.position.add(this.velocity.clone().multiplyScalar(deltaTime * 15)); // Slightly reduced from 20
         
-        // Update rotation
+        // Update rotation with banking
         this.aircraft.rotation.x += this.angularVelocity.x * deltaTime;
         this.aircraft.rotation.y += this.angularVelocity.y * deltaTime;
-        this.aircraft.rotation.z += this.angularVelocity.z * deltaTime;
+        this.aircraft.rotation.z = this.bankAngle; // Direct banking control for realistic look
         
-        // Dampen angular velocity
-        this.angularVelocity.multiplyScalar(0.95);
+        // Dampen angular velocity more realistically
+        this.angularVelocity.multiplyScalar(0.92); // More damping for realism
     }
 
     updateAircraftMetrics() {
@@ -261,6 +364,10 @@ export class AircraftSystem {
             altitude: Math.round(this.altitude),
             throttle: Math.round(this.controls.throttle * 100),
             engineOn: this.isEngineOn,
+            bankAngle: Math.round(this.bankAngle * 180 / Math.PI), // Bank angle in degrees
+            gForce: Math.round(this.gForce * 10) / 10, // G-force with 1 decimal
+            turnRate: Math.round(this.turnRate * 1000) / 10, // Turn rate in degrees/sec
+            stallWarning: this.velocity.length() < this.stallSpeed,
             position: {
                 x: Math.round(this.aircraft?.position.x || 0),
                 y: Math.round(this.aircraft?.position.y || 0),
