@@ -20,7 +20,11 @@ const SPEED_INCREMENT = 0.5;
 const MAX_SPEED = 200;
 const BOOST_MULTIPLIER = 2;
 
-// Initialize the game
+/**
+ * Initializes the game, setting up the 3D scene, camera, renderer, environment, aircraft, UI, and event listeners.
+ * 
+ * This function prepares all core components and starts the rendering loop, but does not begin gameplay until the user starts the game.
+ */
 async function init() {
     // Initialize jet display first
     initJetDisplay();
@@ -59,6 +63,13 @@ async function init() {
     animate();
 }
 
+/**
+ * Creates and adds the player's aircraft model to the scene at the environment's spawn position.
+ *
+ * The aircraft is constructed from basic geometries representing the fuselage, wings, tail, and propeller.
+ * It is positioned at the environment's designated spawn point, or at a default safe altitude if unavailable.
+ * Updates the global `aircraft` reference and sets the initial altitude.
+ */
 function createAircraft() {
     const aircraftGroup = new THREE.Group();
 
@@ -105,6 +116,11 @@ function createAircraft() {
     scene.add(aircraft);
 }
 
+/**
+ * Sets up event listeners for keyboard input, start button clicks, and window resizing.
+ * 
+ * Tracks pressed keys for game controls, starts the game when the start button is clicked, and adjusts rendering on window resize.
+ */
 function setupEventListeners() {
     // Keyboard events
     document.addEventListener('keydown', (event) => {
@@ -157,6 +173,11 @@ function gameLoop() {
     updateUI();
 }
 
+/**
+ * Processes user input to control the aircraft's speed, orientation, and movement.
+ *
+ * Adjusts speed and applies a boost if the spacebar is held, modifies pitch, yaw, and roll based on WASD keys, moves the aircraft forward, and enforces a minimum altitude above the terrain.
+ */
 function handleInput() {
     const isBoosting = keys['Space'];
     const currentMaxSpeed = isBoosting ? MAX_SPEED * BOOST_MULTIPLIER : MAX_SPEED;
