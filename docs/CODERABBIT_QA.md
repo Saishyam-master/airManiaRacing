@@ -212,5 +212,206 @@ const boundingBox = new THREE.Box3().setFromObject(trackSegment);
 
 ---
 
+### Session 3: Advanced UI with 3D Jet Centerpiece
+**Date**: July 17, 2025  
+**Pull Request**: [feat: implement advanced UI with 3D jet centerpiece #4](https://github.com/Saishyam-master/airManiaRacing/pull/4)  
+**Branch**: `feature/advanced-ui-with-jet` → `main`  
+
+**CodeRabbit Status**: ✅ Active and provided comprehensive review  
+**Review Outcome**: ✅ Complete - 1 actionable comment, extensive UI enhancement suggestions
+
+#### CodeRabbit's Summary:
+> **New Features:**
+> - Introduced a 3D jet model display on the start screen, featuring smooth animation and lighting effects
+> - Added a loading indicator for the jet model, with a fallback procedural jet if the model fails to load
+> 
+> **Style:**
+> - Redesigned the start screen layout using a responsive grid with distinct areas for the title, controls, jet visualization, and start button
+> - Enhanced visuals with a dynamic spotlight background and improved loading overlay
+> 
+> **Documentation:**
+> - Added instructions and specifications for jet model assets in a new README file
+
+#### CodeRabbit Comments:
+1. **File Path Inconsistency**: 
+   - **File**: `main.js:374`
+   - **Issue**: GLB file path `'./visuals/airManiaJet.glb'` doesn't match documented location in `assets/models/README.md` which specifies `assets/models/jet.glb`
+   - **Suggestion**: Update either the path or documentation to be consistent
+   - **Priority**: Medium
+   - **Status**: Noted - will address in next update
+
+#### My Questions/Follow-ups:
+1. **Q**: "is my UI good enough, could I add anything to make it more appealing? I want to do like a neon background rather than overlaying text on the actual game. What do you think?"
+   - **Context**: Seeking UI enhancement suggestions and feedback on neon aesthetic approach
+   - **CodeRabbit Response**: [See detailed response below]
+   - **Resolution**: Comprehensive neon enhancement suggestions provided
+
+#### CodeRabbit's UI Enhancement Analysis:
+
+**🌟 Current Strengths Identified:**
+- Professional grid layout with good responsive design
+- 3D jet centerpiece as effective focal point
+- Existing glow effects on logo and button
+- Animated background elements (clouds, stars, aircraft icons)
+- Smooth transitions and hover effects
+
+**🎨 Neon Enhancement Suggestions:**
+
+**1. Neon Grid/Circuit Board Background:**
+```css
+#startScreen::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: 
+        linear-gradient(cyan 1px, transparent 1px),
+        linear-gradient(90deg, cyan 1px, transparent 1px);
+    background-size: 50px 50px;
+    opacity: 0.1;
+    animation: neonGridPulse 3s ease-in-out infinite;
+    z-index: 0;
+}
+
+@keyframes neonGridPulse {
+    0%, 100% { opacity: 0.1; }
+    50% { opacity: 0.2; }
+}
+```
+
+**2. Enhanced Neon Glow Effects:**
+```css
+@keyframes logoGlow {
+    from { 
+        text-shadow: 
+            0 0 5px #00ffff,
+            0 0 10px #00ffff,
+            0 0 15px #00ffff,
+            0 0 20px #00ffff,
+            0 0 40px #00ffff,
+            0 0 80px #00ffff;
+    }
+    to { 
+        text-shadow: 
+            0 0 10px #ff00ff,
+            0 0 20px #ff00ff,
+            0 0 30px #ff00ff,
+            0 0 40px #ff00ff,
+            0 0 80px #ff00ff,
+            0 0 160px #ff00ff;
+    }
+}
+
+.game-controls {
+    border: 2px solid #00ffff;
+    box-shadow: 
+        0 0 20px rgba(0, 255, 255, 0.5),
+        inset 0 0 20px rgba(0, 255, 255, 0.1);
+}
+
+#jetDisplay {
+    border: 2px solid #ff00ff;
+    box-shadow: 
+        0 0 30px rgba(255, 0, 255, 0.6),
+        inset 0 0 30px rgba(255, 0, 255, 0.1);
+    border-radius: 15px;
+}
+```
+
+**3. Neon Particle Effects:**
+```css
+.neon-particles {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.neon-particle {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: #00ffff;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #00ffff;
+    animation: floatNeon 4s ease-in-out infinite;
+}
+
+@keyframes floatNeon {
+    0%, 100% { 
+        transform: translateY(0px) rotate(0deg);
+        opacity: 0.8;
+    }
+    50% { 
+        transform: translateY(-20px) rotate(180deg);
+        opacity: 1;
+    }
+}
+```
+
+**4. Neon HUD Style for Game UI:**
+```css
+#ui {
+    background: linear-gradient(45deg, 
+        rgba(0, 255, 255, 0.1) 0%, 
+        rgba(255, 0, 255, 0.1) 100%);
+    border: 2px solid #00ffff;
+    box-shadow: 
+        0 0 20px rgba(0, 255, 255, 0.5),
+        inset 0 0 20px rgba(0, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 10px;
+}
+
+#ui div {
+    color: #00ffff;
+    text-shadow: 0 0 10px #00ffff;
+    font-family: 'Orbitron', monospace;
+}
+```
+
+**🎯 Specific Design Recommendations:**
+- **Color Scheme**: Stick with cyan (#00ffff) and magenta (#ff00ff) for true neon vibes
+- **Add Scanlines**: Create a retro CRT effect with CSS
+- **Neon Button Upgrades**: Make buttons look like neon signs
+- **Pulsing Borders**: Add animated neon borders to key elements
+- **Particle System**: Add floating neon particles in the background
+
+**💡 Key Insight on Text Overlay vs Neon Background:**
+> "You're absolutely right about the text overlay approach! For the Game UI (speed, altitude, score):
+> - Move to neon-styled side panels or corner displays
+> - Use semi-transparent neon boxes that don't obstruct gameplay
+> - Consider a heads-up display (HUD) style with neon borders
+> 
+> The neon background approach is definitely the way to go - it'll give your game a distinctive cyberpunk aesthetic that's much more engaging than traditional text overlays."
+
+#### Actions Taken:
+- [x] Implemented 3D jet centerpiece with GLB loader
+- [x] Created responsive grid layout
+- [x] Added loading indicators and fallback systems
+- [ ] Address file path inconsistency issue
+- [ ] Consider implementing neon enhancement suggestions
+- [ ] Evaluate neon particle system integration
+
+#### Learning Notes:
+- CodeRabbit provides both technical review and creative design guidance
+- The importance of consistent file paths and documentation
+- Neon cyberpunk aesthetic can significantly enhance visual appeal
+- CodeRabbit recognizes the value of avoiding text overlays in gameplay
+- AI reviewers can provide comprehensive CSS code suggestions for visual enhancements
+- The current UI foundation is solid and ready for advanced styling
+
+#### Technical Files Changed:
+- `assets/models/README.md` - New documentation for model assets
+- `index.html` - Refactored start screen with CSS grid (+306 lines)
+- `main.js` - 3D jet display implementation (+84 lines)
+- `visuals/airManiaJet.glb` - Custom 3D jet model (8.03 MB)
+
+**Total Lines**: +390 additions, -15 deletions
+
+---
+
 *Last Updated: July 17, 2025*
-*Next Update: After first CodeRabbit review*
+*Next Update: After implementing neon enhancements or merging PR*
