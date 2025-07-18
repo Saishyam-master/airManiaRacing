@@ -1,13 +1,15 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { Environment } from './environment.js';
 
 // Game state
 let scene, camera, renderer, aircraft;
 let gameStarted = false;
 let keys = {};
 let speed = 0;
-let altitude = 100;
+let altitude = 500; // Increased from 100 to be safely above terrain
 let score = 0;
+let environment;
 
 // Jet display state
 let jetDisplayScene, jetDisplayCamera, jetDisplayRenderer, jetModel;
@@ -19,17 +21,16 @@ const MAX_SPEED = 200;
 const BOOST_MULTIPLIER = 2;
 
 // Initialize the game
-function init() {
+async function init() {
     // Initialize jet display first
     initJetDisplay();
 
     // Create main game scene
     scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x87ceeb, 500, 2000);
 
     // Create camera
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 3000);
-    camera.position.set(0, 50, 100);
+    camera.position.set(0, 400, 100); // Raised camera position for higher terrain
 
     // Create renderer
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -41,22 +42,12 @@ function init() {
     const gameContainer = document.getElementById('gameContainer');
     gameContainer.appendChild(renderer.domElement);
 
-    // Add lighting
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
-    scene.add(ambientLight);
-
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(100, 100, 50);
-    directionalLight.castShadow = true;
-    directionalLight.shadow.mapSize.width = 2048;
-    directionalLight.shadow.mapSize.height = 2048;
-    scene.add(directionalLight);
+    // Create and initialize environment
+    environment = new Environment(scene);
+    await environment.init();
 
     // Create aircraft
     createAircraft();
-
-    // Create environment
-    createEnvironment();
 
     // Setup event listeners
     setupEventListeners();
@@ -103,72 +94,15 @@ function createAircraft() {
     propeller.name = 'propeller';
     aircraftGroup.add(propeller);
 
-    aircraftGroup.position.set(0, altitude, 0);
+    // Use environment spawn position if available, otherwise use safe altitude
+    const spawnPosition = environment ? environment.getSpawnPosition() : new THREE.Vector3(0, 500, 0);
+    aircraftGroup.position.copy(spawnPosition);
+    altitude = spawnPosition.y;
+    
+    console.log(`Aircraft spawned at position: (${spawnPosition.x.toFixed(2)}, ${spawnPosition.y.toFixed(2)}, ${spawnPosition.z.toFixed(2)})`);
+    
     aircraft = aircraftGroup;
     scene.add(aircraft);
-}
-
-function createEnvironment() {
-    // Ground
-    const groundGeometry = new THREE.PlaneGeometry(4000, 4000);
-    const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x90EE90 });
-    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = 0;
-    ground.receiveShadow = true;
-    scene.add(ground);
-
-    // Clouds
-    for (let i = 0; i < 20; i++) {
-        createCloud();
-    }
-
-    // Mountains
-    for (let i = 0; i < 10; i++) {
-        createMountain();
-    }
-}
-
-function createCloud() {
-    const cloudGroup = new THREE.Group();
-    
-    for (let i = 0; i < 3; i++) {
-        const cloudGeometry = new THREE.SphereGeometry(Math.random() * 20 + 10, 8, 6);
-        const cloudMaterial = new THREE.MeshLambertMaterial({ 
-            color: 0xffffff, 
-            transparent: true, 
-            opacity: 0.7 
-        });
-        const cloudSphere = new THREE.Mesh(cloudGeometry, cloudMaterial);
-        cloudSphere.position.x = (Math.random() - 0.5) * 30;
-        cloudSphere.position.y = (Math.random() - 0.5) * 10;
-        cloudSphere.position.z = (Math.random() - 0.5) * 30;
-        cloudGroup.add(cloudSphere);
-    }
-    
-    cloudGroup.position.x = (Math.random() - 0.5) * 2000;
-    cloudGroup.position.y = Math.random() * 200 + 150;
-    cloudGroup.position.z = (Math.random() - 0.5) * 2000;
-    
-    scene.add(cloudGroup);
-}
-
-function createMountain() {
-    const mountainGeometry = new THREE.ConeGeometry(
-        Math.random() * 100 + 50,
-        Math.random() * 200 + 100,
-        8
-    );
-    const mountainMaterial = new THREE.MeshLambertMaterial({ color: 0x8d6e63 });
-    const mountain = new THREE.Mesh(mountainGeometry, mountainMaterial);
-    
-    mountain.position.x = (Math.random() - 0.5) * 3000;
-    mountain.position.y = mountain.geometry.parameters.height / 2;
-    mountain.position.z = (Math.random() - 0.5) * 3000;
-    mountain.castShadow = true;
-    mountain.receiveShadow = true;
-    
-    scene.add(mountain);
 }
 
 function setupEventListeners() {
@@ -256,8 +190,8 @@ function handleInput() {
     direction.applyQuaternion(aircraft.quaternion);
     aircraft.position.add(direction.multiplyScalar(speed * 0.1));
     
-    // Keep aircraft above ground
-    altitude = Math.max(aircraft.position.y, 20);
+    // Keep aircraft above ground - minimum altitude for new terrain
+    altitude = Math.max(aircraft.position.y, 50);
     aircraft.position.y = altitude;
 }
 
@@ -518,3 +452,39 @@ function resizeJetDisplay() {
 
 // Initialize the game when the script loads
 init();
+
+// Function to add noise to terrain if heightmap is too flat
+window.addTerrainNoise = function(intensity = 0.5) {
+    if (environment) {
+        environment.addNoiseToTerrain(intensity);
+    }
+};
+
+// Function to test different noise levels
+window.testNoiseLevel = function(level) {
+    console.log(`Testing noise level: ${level}`);
+    window.addTerrainNoise(level);
+};
+
+// Function to enhance jagged peaks
+window.enhanceJaggedPeaks = function(intensity = 1.5) {
+    if (environment) {
+        environment.enhanceJaggedPeaks(intensity);
+    }
+};
+
+// Function to adjust valley intensity
+window.adjustValleys = function(intensity = 1.0) {
+    if (environment) {
+        environment.adjustValleyIntensity(intensity);
+    }
+};
+
+// Function to show terrain info
+window.showTerrainInfo = function() {
+    console.log('Terrain Commands:');
+    console.log('- addTerrainNoise(0.5) - Add procedural noise');
+    console.log('- enhanceJaggedPeaks(1.5) - Make peaks more jagged');
+    console.log('- adjustValleys(1.0) - Adjust valley depth');
+    console.log('- testNoiseLevel(0.8) - Test specific noise level');
+};
