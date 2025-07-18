@@ -132,19 +132,121 @@
             left: 0;
             width: 100%;
             height: 100%;
+            display: grid;
+            grid-template-areas: 
+                ". title ."
+                "controls jet button"
+                ". . .";
+            grid-template-columns: 1fr 2fr 1fr;
+            grid-template-rows: 1fr 2fr 1fr;
+            gap: 20px;
+            z-index: 200;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(8px);
+            padding: 40px;
+            overflow: hidden;
+        }
+
+        /* Background spotlight effect */
+        #startScreen::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 800px;
+            height: 600px;
+            background: radial-gradient(
+                ellipse at center,
+                rgba(255, 255, 255, 0.1) 0%,
+                rgba(100, 181, 246, 0.15) 20%,
+                rgba(66, 165, 245, 0.1) 40%,
+                transparent 70%
+            );
+            transform: translate(-50%, -50%);
+            z-index: -1;
+            animation: spotlightPulse 4s ease-in-out infinite;
+        }
+
+        @keyframes spotlightPulse {
+            0%, 100% { 
+                opacity: 0.6;
+                transform: translate(-50%, -50%) scale(1);
+            }
+            50% { 
+                opacity: 0.9;
+                transform: translate(-50%, -50%) scale(1.1);
+            }
+        }
+
+        .logo-container {
+            grid-area: title;
+            text-align: center;
+            align-self: end;
+            animation: logoGlow 3s ease-in-out infinite alternate;
+            z-index: 10;
+        }
+
+        /* 3D Jet Display - No box, just the plane */
+        #jetDisplay {
+            grid-area: jet;
+            position: relative;
+            width: 100%;
+            height: 500px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 5;
+            /* Remove all background and borders */
+        }
+
+        #jetCanvas {
+            width: 100%;
+            height: 100%;
+            /* Remove border radius */
+        }
+
+        /* Enhanced jet loading indicator */
+        .jet-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #64b5f6;
+            font-family: 'Orbitron', monospace;
+            font-size: 1.3rem;
+            text-align: center;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(100, 181, 246, 0.3);
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(100, 181, 246, 0.3);
+            border-top: 4px solid #64b5f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Start button container */
+        .start-button-container {
+            grid-area: button;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            z-index: 200;
-            background: rgba(0, 0, 0, 0.2);
-            backdrop-filter: blur(5px);
-        }
-
-        .logo-container {
-            text-align: center;
-            margin-bottom: 40px;
-            animation: logoGlow 3s ease-in-out infinite alternate;
+            gap: 20px;
+            z-index: 10;
         }
 
         @keyframes logoGlow {
@@ -190,14 +292,16 @@
         }
 
         .game-controls {
+            grid-area: controls;
             background: rgba(0, 0, 0, 0.4);
-            padding: 30px 40px;
+            padding: 30px;
             border-radius: 20px;
             backdrop-filter: blur(15px);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            text-align: center;
-            margin-bottom: 40px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            align-self: center;
+            max-height: 350px;
+            overflow-y: auto;
         }
 
         .controls-title {
@@ -329,10 +433,26 @@
         }
 
         /* Responsive adjustments */
+        @media (max-width: 1200px) {
+            #startScreen {
+                grid-template-areas: 
+                    "title"
+                    "jet"
+                    "controls"
+                    "button";
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto auto auto;
+                padding: 20px;
+            }
+
+            #jetDisplay {
+                height: 300px;
+            }
+        }
+
         @media (max-width: 768px) {
             .game-controls {
                 padding: 20px;
-                margin: 0 20px 30px;
             }
 
             .controls-grid {
@@ -343,6 +463,10 @@
             #startButton {
                 padding: 15px 35px;
                 font-size: 1.1rem;
+            }
+
+            #jetDisplay {
+                height: 250px;
             }
         }
     </style>
@@ -396,9 +520,19 @@
                 </div>
             </div>
 
-            <button id="startButton">
-                <span>🚀 Take Flight</span>
-            </button>
+            <div id="jetDisplay">
+                <canvas id="jetCanvas"></canvas>
+                <div class="jet-loading" id="jetLoading">
+                    <div class="loading-spinner"></div>
+                    <div>Loading Modern Jet...</div>
+                </div>
+            </div>
+
+            <div class="start-button-container">
+                <button id="startButton">
+                    <span>🚀 Take Flight</span>
+                </button>
+            </div>
         </div>
     </div>
 
