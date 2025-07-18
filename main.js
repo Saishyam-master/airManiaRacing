@@ -1,13 +1,14 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Environment } from './environment.js';
+import { AircraftSystem } from './aircraft-system.js';
 
 // Game state
-let scene, camera, renderer, aircraft;
+let scene, camera, renderer, aircraftSystem;
 let gameStarted = false;
 let keys = {};
 let speed = 0;
-let altitude = 500; // Increased from 100 to be safely above terrain
+let altitude = 500;
 let score = 0;
 let environment;
 
@@ -28,9 +29,9 @@ async function init() {
     // Create main game scene
     scene = new THREE.Scene();
 
-    // Create camera
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 3000);
-    camera.position.set(0, 400, 100); // Raised camera position for higher terrain
+    // Create camera with closer initial position for more immersive view
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
+    camera.position.set(0, 200, 50); // Closer initial position
 
     // Create renderer
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -46,8 +47,9 @@ async function init() {
     environment = new Environment(scene);
     await environment.init();
 
-    // Create aircraft
-    createAircraft();
+    // Create aircraft system
+    aircraftSystem = new AircraftSystem(scene, environment);
+    await aircraftSystem.init();
 
     // Setup event listeners
     setupEventListeners();
@@ -57,52 +59,6 @@ async function init() {
 
     // Start render loop (but don't start game logic yet)
     animate();
-}
-
-function createAircraft() {
-    const aircraftGroup = new THREE.Group();
-
-    // Fuselage (main body)
-    const fuselageGeometry = new THREE.CylinderGeometry(2, 4, 20, 8);
-    const fuselageMaterial = new THREE.MeshLambertMaterial({ color: 0x1976d2 });
-    const fuselage = new THREE.Mesh(fuselageGeometry, fuselageMaterial);
-    fuselage.rotation.z = Math.PI / 2;
-    fuselage.castShadow = true;
-    aircraftGroup.add(fuselage);
-
-    // Wings
-    const wingGeometry = new THREE.BoxGeometry(30, 1, 8);
-    const wingMaterial = new THREE.MeshLambertMaterial({ color: 0x42a5f5 });
-    const wings = new THREE.Mesh(wingGeometry, wingMaterial);
-    wings.position.z = -2;
-    wings.castShadow = true;
-    aircraftGroup.add(wings);
-
-    // Tail
-    const tailGeometry = new THREE.BoxGeometry(8, 8, 1);
-    const tailMaterial = new THREE.MeshLambertMaterial({ color: 0x1565c0 });
-    const tail = new THREE.Mesh(tailGeometry, tailMaterial);
-    tail.position.x = -12;
-    tail.castShadow = true;
-    aircraftGroup.add(tail);
-
-    // Propeller
-    const propGeometry = new THREE.BoxGeometry(0.5, 12, 0.5);
-    const propMaterial = new THREE.MeshLambertMaterial({ color: 0x616161 });
-    const propeller = new THREE.Mesh(propGeometry, propMaterial);
-    propeller.position.x = 12;
-    propeller.name = 'propeller';
-    aircraftGroup.add(propeller);
-
-    // Use environment spawn position if available, otherwise use safe altitude
-    const spawnPosition = environment ? environment.getSpawnPosition() : new THREE.Vector3(0, 500, 0);
-    aircraftGroup.position.copy(spawnPosition);
-    altitude = spawnPosition.y;
-    
-    console.log(`Aircraft spawned at position: (${spawnPosition.x.toFixed(2)}, ${spawnPosition.y.toFixed(2)}, ${spawnPosition.z.toFixed(2)})`);
-    
-    aircraft = aircraftGroup;
-    scene.add(aircraft);
 }
 
 function setupEventListeners() {
@@ -145,81 +101,134 @@ function startGame() {
 }
 
 function gameLoop() {
-    if (!gameStarted) return;
+    if (!gameStarted || !aircraftSystem) return;
 
-    // Handle input
-    handleInput();
+    // Get input for aircraft
+    const input = getInputState();
     
-    // Update game state
-    updateGameState();
+    // Update aircraft system
+    const deltaTime = 1/60; // Assuming 60 FPS
+    aircraftSystem.update(deltaTime, input);
     
-    // Update UI
+    // Update camera
+    updateCamera();
+    
+    // Update UI with aircraft metrics
     updateUI();
 }
 
-function handleInput() {
+function getInputState() {
     const isBoosting = keys['Space'];
-    const currentMaxSpeed = isBoosting ? MAX_SPEED * BOOST_MULTIPLIER : MAX_SPEED;
+    const boostMultiplier = isBoosting ? 1.5 : 1.0;
     
-    // Forward/Backward
-    if (keys['KeyW']) {
-        speed = Math.min(speed + SPEED_INCREMENT, currentMaxSpeed);
-        aircraft.rotation.x = Math.max(aircraft.rotation.x - 0.01, -0.3);
-    } else if (keys['KeyS']) {
-        speed = Math.max(speed - SPEED_INCREMENT, 0);
-        aircraft.rotation.x = Math.min(aircraft.rotation.x + 0.01, 0.2);
-    } else {
-        // Gradually return to level flight
-        aircraft.rotation.x *= 0.98;
-    }
-    
-    // Left/Right
-    if (keys['KeyA']) {
-        aircraft.rotation.y += 0.02;
-        aircraft.rotation.z = Math.min(aircraft.rotation.z + 0.02, 0.5);
-    } else if (keys['KeyD']) {
-        aircraft.rotation.y -= 0.02;
-        aircraft.rotation.z = Math.max(aircraft.rotation.z - 0.02, -0.5);
-    } else {
-        // Gradually level the aircraft
-        aircraft.rotation.z *= 0.95;
-    }
-    
-    // Move aircraft forward
-    const direction = new THREE.Vector3(0, 0, -1);
-    direction.applyQuaternion(aircraft.quaternion);
-    aircraft.position.add(direction.multiplyScalar(speed * 0.1));
-    
-    // Keep aircraft above ground - minimum altitude for new terrain
-    altitude = Math.max(aircraft.position.y, 50);
-    aircraft.position.y = altitude;
+    return {
+        throttle: keys['KeyW'] ? 1.0 * boostMultiplier : (keys['KeyS'] ? -0.5 : 0),
+        pitch: keys['KeyW'] ? -0.5 : (keys['KeyS'] ? 0.5 : 0),
+        yaw: keys['KeyA'] ? -1.0 : (keys['KeyD'] ? 1.0 : 0),
+        roll: keys['KeyA'] ? 0.5 : (keys['KeyD'] ? -0.5 : 0)
+    };
 }
 
-function updateGameState() {
-    // Rotate propeller
-    const propeller = aircraft.getObjectByName('propeller');
-    if (propeller) {
-        propeller.rotation.z += speed * 0.1;
-    }
+function updateCamera() {
+    if (!aircraftSystem || !aircraftSystem.aircraft) return;
     
-    // Update camera to follow aircraft
-    const idealCameraPosition = new THREE.Vector3(0, 50, 100);
-    idealCameraPosition.applyQuaternion(aircraft.quaternion);
-    idealCameraPosition.add(aircraft.position);
+    const aircraft = aircraftSystem.aircraft;
     
-    camera.position.lerp(idealCameraPosition, 0.1);
-    camera.lookAt(aircraft.position);
+    // Try positioning camera behind aircraft in different ways
+    // The GLB model might be oriented differently than expected
     
-    // Update score based on speed and time
-    if (speed > 0) {
-        score += speed * 0.01;
+    // Method 1: Try all possible "behind" positions
+    const possibleOffsets = [
+        new THREE.Vector3(0, 3, 10),   // Behind (+Z)
+        new THREE.Vector3(0, 3, -10),  // Front (-Z)
+        new THREE.Vector3(10, 3, 0),   // Right (+X)
+        new THREE.Vector3(-10, 3, 0),  // Left (-X)
+    ];
+    
+    // For now, let's try behind (+Z) and if it looks wrong, we'll try others
+    const cameraOffset = new THREE.Vector3(0, 4, 12); // Behind and slightly above
+    cameraOffset.applyQuaternion(aircraft.quaternion);
+    
+    const idealCameraPosition = aircraft.position.clone().add(cameraOffset);
+    
+    // Smooth camera movement
+    camera.position.lerp(idealCameraPosition, 0.08);
+    
+    // Look slightly ahead of the aircraft
+    const lookAhead = new THREE.Vector3(0, 0, -5); // Look forward
+    lookAhead.applyQuaternion(aircraft.quaternion);
+    const lookTarget = aircraft.position.clone().add(lookAhead);
+    
+    camera.lookAt(lookTarget);
+    
+    // Debug: Log camera and aircraft positions occasionally
+    if (Math.random() < 0.01) { // 1% chance to log
+        console.log('Aircraft pos:', aircraft.position);
+        console.log('Camera pos:', camera.position);
+        console.log('Aircraft rotation:', aircraft.rotation);
     }
 }
+
+// Debug helper - add this to console for testing camera positions
+window.cameraDebug = {
+    // Test different camera positions
+    setBehind: () => {
+        if (aircraftSystem && aircraftSystem.aircraft) {
+            const aircraft = aircraftSystem.aircraft;
+            const offset = new THREE.Vector3(0, 5, 15);
+            offset.applyQuaternion(aircraft.quaternion);
+            camera.position.copy(aircraft.position.clone().add(offset));
+            camera.lookAt(aircraft.position);
+            console.log('Camera set to behind (+Z)');
+        }
+    },
+    setFront: () => {
+        if (aircraftSystem && aircraftSystem.aircraft) {
+            const aircraft = aircraftSystem.aircraft;
+            const offset = new THREE.Vector3(0, 5, -15);
+            offset.applyQuaternion(aircraft.quaternion);
+            camera.position.copy(aircraft.position.clone().add(offset));
+            camera.lookAt(aircraft.position);
+            console.log('Camera set to front (-Z)');
+        }
+    },
+    setLeft: () => {
+        if (aircraftSystem && aircraftSystem.aircraft) {
+            const aircraft = aircraftSystem.aircraft;
+            const offset = new THREE.Vector3(-15, 5, 0);
+            offset.applyQuaternion(aircraft.quaternion);
+            camera.position.copy(aircraft.position.clone().add(offset));
+            camera.lookAt(aircraft.position);
+            console.log('Camera set to left (-X)');
+        }
+    },
+    setRight: () => {
+        if (aircraftSystem && aircraftSystem.aircraft) {
+            const aircraft = aircraftSystem.aircraft;
+            const offset = new THREE.Vector3(15, 5, 0);
+            offset.applyQuaternion(aircraft.quaternion);
+            camera.position.copy(aircraft.position.clone().add(offset));
+            camera.lookAt(aircraft.position);
+            console.log('Camera set to right (+X)');
+        }
+    }
+};
+
+console.log('Camera debug available: cameraDebug.setBehind(), cameraDebug.setFront(), cameraDebug.setLeft(), cameraDebug.setRight()');
 
 function updateUI() {
-    document.getElementById('speed').textContent = `Speed: ${Math.round(speed)} km/h`;
-    document.getElementById('altitude').textContent = `Altitude: ${Math.round(altitude)} m`;
+    if (!aircraftSystem) return;
+    
+    const metrics = aircraftSystem.getMetrics();
+    
+    document.getElementById('speed').textContent = `Speed: ${metrics.speed} km/h`;
+    document.getElementById('altitude').textContent = `Altitude: ${metrics.altitude} m`;
     document.getElementById('score').textContent = `Score: ${Math.round(score)}`;
+    
+    // Update score based on speed and time
+    if (metrics.speed > 0) {
+        score += metrics.speed * 0.001;
+    }
 }
 
 function animate() {

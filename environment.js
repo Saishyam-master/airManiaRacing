@@ -2,13 +2,27 @@ import * as THREE from 'three';
 import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
 
 export class Environment {
-    constructor(scene) {
+    constructor(scene, config = {}) {
         this.scene = scene;
         this.terrain = null;
-        this.terrainSize = 4000; // Larger world
-        this.heightScale = 800; // Increased from 400 for more dramatic mountains
-        this.terrainSegments = 256;
-        this.spawnHeight = 300; // Higher spawn for taller mountains
+        this.terrainSize = config.terrainSize || 4000;
+        this.heightScale = config.heightScale || 800;
+        this.terrainSegments = config.terrainSegments || 256;
+        this.spawnHeight = config.spawnHeight || 300;
+        
+        // Mountain placement configuration
+        this.mountainConfig = {
+            maxMountains: config.maxMountains || 6,
+            flatAreaDivisor: config.flatAreaDivisor || 800,
+            minMountains: config.minMountains || 1
+        };
+        
+        // Asset paths configuration
+        this.assetPaths = {
+            heightmap: config.heightmapPath || 'assets/Rocky Land and Rivers/Height Map PNG.png',
+            diffuse: config.diffusePath || 'assets/Rocky Land and Rivers/Diffuse.exr',
+            bumpMap: config.bumpMapPath || 'assets/Rocky Land and Rivers/Bump Map for Material.exr'
+        };
     }
 
     async init() {
@@ -25,13 +39,13 @@ export class Environment {
 
     async createTerrain() {
         // Load heightmap (PNG)
-        const heightmapTexture = await this.loadPNGTexture('assets/Rocky Land and Rivers/Height Map PNG.png');
+        const heightmapTexture = await this.loadPNGTexture(this.assetPaths.heightmap);
         
         // Load diffuse texture (EXR)
-        const diffuseTexture = await this.loadEXRTexture('assets/Rocky Land and Rivers/Diffuse.exr');
+        const diffuseTexture = await this.loadEXRTexture(this.assetPaths.diffuse);
         
         // Load bump map (EXR)
-        const bumpTexture = await this.loadEXRTexture('assets/Rocky Land and Rivers/Bump Map for Material.exr');
+        const bumpTexture = await this.loadEXRTexture(this.assetPaths.bumpMap);
         
         // Create terrain geometry
         const geometry = new THREE.PlaneGeometry(
@@ -69,10 +83,11 @@ export class Environment {
             window.terrainDebug = {
                 getHeight: (x, z) => this.getTerrainHeightAt(x, z),
                 info: () => this.logTerrainInfo(),
-                spawn: () => this.getSpawnPosition()
+                spawn: () => this.getSpawnPosition(),
+                cornerSpawn: () => this.getCornerSpawnPosition()
             };
             
-            console.log('Terrain debug methods available: terrainDebug.getHeight(x, z), terrainDebug.info(), terrainDebug.spawn()');
+            console.log('Terrain debug methods available: terrainDebug.getHeight(x, z), terrainDebug.info(), terrainDebug.spawn(), terrainDebug.cornerSpawn()');
         }, 100);
     }
 
@@ -91,26 +106,40 @@ export class Environment {
     }
 
     async extractHeightData(heightmapTexture) {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             
             const img = new Image();
+            
             img.onload = () => {
-                canvas.width = this.terrainSegments + 1;
-                canvas.height = this.terrainSegments + 1;
-                
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                
-                const heightData = [];
-                for (let i = 0; i < imageData.data.length; i += 4) {
-                    // Use red channel for height (grayscale)
-                    const height = imageData.data[i] / 255;
-                    heightData.push(height);
+                try {
+                    canvas.width = this.terrainSegments + 1;
+                    canvas.height = this.terrainSegments + 1;
+                    
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    
+                    const heightData = [];
+                    for (let i = 0; i < imageData.data.length; i += 4) {
+                        // Use red channel for height (grayscale)
+                        const height = imageData.data[i] / 255;
+                        heightData.push(height);
+                    }
+                    
+                    // Clean up canvas and context for garbage collection
+                    canvas.width = 0;
+                    canvas.height = 0;
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    resolve(heightData);
+                } catch (error) {
+                    reject(new Error(`Failed to extract height data: ${error.message}`));
                 }
-                
-                resolve(heightData);
+            };
+            
+            img.onerror = () => {
+                reject(new Error(`Failed to load heightmap image: ${heightmapTexture.image.src}`));
             };
             
             img.src = heightmapTexture.image.src;
@@ -261,13 +290,25 @@ export class Environment {
     placeMountainsInFlatAreas(vertices, flatAreas, mountainRegions, heightData) {
         if (mountainRegions.length === 0) return;
         
-        // Randomly select 4-6 flat areas for mountain placement
-        const numMountains = Math.min(6, Math.floor(flatAreas.length / 800));
+        // Ensure at least minimum mountains are placed, using configurable values
+        const numMountains = Math.max(
+            this.mountainConfig.minMountains,
+            Math.min(
+                this.mountainConfig.maxMountains,
+                Math.floor(flatAreas.length / this.mountainConfig.flatAreaDivisor)
+            )
+        );
+        
         const selectedAreas = [];
         
+        // Use deterministic placement based on flat area positions for consistency
+        // Sort flat areas by position to ensure consistent ordering
+        flatAreas.sort((a, b) => a.x + a.y - (b.x + b.y));
+        
         for (let i = 0; i < numMountains; i++) {
-            const randomIndex = Math.floor(Math.random() * flatAreas.length);
-            const area = flatAreas[randomIndex];
+            // Use deterministic selection instead of random
+            const areaIndex = Math.floor((i / numMountains) * flatAreas.length);
+            const area = flatAreas[areaIndex];
             
             // Ensure areas are spread out
             const minDistance = 400;
@@ -278,21 +319,37 @@ export class Environment {
             
             if (!tooClose) {
                 selectedAreas.push(area);
+            } else {
+                // Try next area if too close
+                for (let j = areaIndex + 1; j < flatAreas.length; j++) {
+                    const nextArea = flatAreas[j];
+                    const stillTooClose = selectedAreas.some(selected => 
+                        Math.abs(selected.x - nextArea.x) < minDistance || 
+                        Math.abs(selected.y - nextArea.y) < minDistance
+                    );
+                    if (!stillTooClose) {
+                        selectedAreas.push(nextArea);
+                        break;
+                    }
+                }
             }
         }
         
-        // Place mountains in selected areas with more dramatic scaling
+        // Place mountains in selected areas with consistent scaling
         selectedAreas.forEach((area, mountainIndex) => {
             const mountainRegion = mountainRegions[mountainIndex % mountainRegions.length];
-            this.placeMountainAt(vertices, area.x, area.y, mountainRegion);
+            // Use deterministic scaling based on position instead of random
+            const scale = 1.2 + ((area.x + area.y) % 100) / 125; // Deterministic scale 1.2-2.0
+            this.placeMountainAt(vertices, area.x, area.y, mountainRegion, scale);
         });
         
-        console.log(`Placed ${selectedAreas.length} additional mountain regions`);
+        console.log(`Placed ${selectedAreas.length} additional mountain regions (deterministic placement)`);
     }
 
-    placeMountainAt(vertices, targetX, targetY, mountainRegion) {
+    placeMountainAt(vertices, targetX, targetY, mountainRegion, scale = null) {
         const segmentSize = this.terrainSegments + 1;
-        const scale = 1.2 + Math.random() * 0.8; // Random scale 1.2-2.0 for more dramatic mountains
+        // Use deterministic scaling if not provided
+        const mountainScale = scale || (1.2 + ((targetX + targetY) % 100) / 125);
         
         mountainRegion.heights.forEach(point => {
             const worldX = targetX + point.offsetX * (this.terrainSize / segmentSize);
@@ -305,7 +362,7 @@ export class Environment {
                 const distance = Math.sqrt((vx - worldX) ** 2 + (vy - worldY) ** 2);
                 
                 if (distance < 25) { // Slightly larger influence radius
-                    const mountainHeight = point.height * this.heightScale * 2.5 * scale; // Increased scaling
+                    const mountainHeight = point.height * this.heightScale * 2.5 * mountainScale;
                     const currentHeight = vertices[i + 2];
                     
                     // Blend the mountain height with existing terrain
@@ -368,14 +425,14 @@ export class Environment {
     }
 
     createSkybox() {
-        // Create simple gradient sky
-        const skyGeometry = new THREE.SphereGeometry(2000, 32, 32);
+        // Create hemisphere sky dome (more realistic than full sphere)
+        const skyGeometry = new THREE.SphereGeometry(5000, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.5);
         const skyMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 topColor: { value: new THREE.Color(0x4A90E2) },
                 bottomColor: { value: new THREE.Color(0xE6F3FF) },
-                offset: { value: 400 },
-                exponent: { value: 0.8 }
+                offset: { value: 300 },
+                exponent: { value: 0.6 }
             },
             vertexShader: `
                 varying vec3 vWorldPosition;
@@ -397,11 +454,15 @@ export class Environment {
                     gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);
                 }
             `,
-            side: THREE.BackSide
+            side: THREE.BackSide,
+            depthWrite: false
         });
         
         const skybox = new THREE.Mesh(skyGeometry, skyMaterial);
+        skybox.renderOrder = -1; // Render behind everything
         this.scene.add(skybox);
+        
+        console.log('Sky dome created successfully');
     }
 
     // Get spawn position above terrain
@@ -410,6 +471,19 @@ export class Environment {
         const terrainHeight = this.getTerrainHeightAt(0, 0);
         const safeSpawnHeight = terrainHeight + 100; // 100 units above terrain
         return new THREE.Vector3(0, safeSpawnHeight, 0);
+    }
+
+    // Get corner spawn position for racing start
+    getCornerSpawnPosition() {
+        // Spawn at one of the corners for a racing start
+        const cornerOffset = this.terrainSize * 0.4; // 40% from center toward corner
+        const spawnX = -cornerOffset; // Left side
+        const spawnZ = -cornerOffset; // Front side
+        
+        const terrainHeight = this.getTerrainHeightAt(spawnX, spawnZ);
+        const safeSpawnHeight = terrainHeight + 150; // Higher spawn for racing start
+        
+        return new THREE.Vector3(spawnX, safeSpawnHeight, spawnZ);
     }
 
     // Get terrain height at specific world position
