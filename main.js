@@ -24,7 +24,11 @@ const SPEED_INCREMENT = 0.5;
 const MAX_SPEED = 200;
 const BOOST_MULTIPLIER = 2;
 
-// Initialize the game
+/**
+ * Initializes the 3D aircraft game, setting up scenes, camera, renderer, environment, debug grid, aircraft system, controls, UI, and event listeners.
+ *
+ * This function prepares both the main game and the jet display for the start screen, but does not start the game logic until triggered.
+ */
 async function init() {
     // Initialize jet display first
     initJetDisplay();
@@ -72,6 +76,11 @@ async function init() {
     animate();
 }
 
+/**
+ * Sets up event listeners for the start button and window resize events.
+ *
+ * Adds a click listener to the start button to begin the game, and a resize listener to adjust rendering when the window size changes.
+ */
 function setupEventListeners() {
     // Start button
     document.getElementById('startButton').addEventListener('click', startGame);
@@ -80,12 +89,20 @@ function setupEventListeners() {
     window.addEventListener('resize', onWindowResize);
 }
 
+/**
+ * Hides the game UI at initialization by removing the 'visible' class from the UI element.
+ */
 function setupUI() {
     // Initially hide the game UI
     const ui = document.getElementById('ui');
     ui.classList.remove('visible');
 }
 
+/**
+ * Transitions from the start screen to the main game, enabling gameplay and UI.
+ *
+ * Sets the game as started, stops the jet display animation, hides the start screen, and shows the game UI.
+ */
 function startGame() {
     console.log('Starting game...');
     gameStarted = true;
@@ -102,6 +119,11 @@ function startGame() {
     console.log('Game started, animate loop will handle updates');
 }
 
+/**
+ * Executes a single iteration of the main game loop, updating aircraft physics, camera position, and UI based on current input.
+ *
+ * Increments the frame counter, checks for game readiness, retrieves input from the controls system, updates the aircraft system with a fixed timestep, adjusts the camera to follow the aircraft, and refreshes UI elements with the latest flight metrics.
+ */
 function gameLoop() {
     frameCount++;
     
@@ -137,6 +159,9 @@ function gameLoop() {
     updateUI();
 }
 
+/**
+ * Updates the camera position and orientation to follow the aircraft from behind and slightly above, smoothly interpolating movement and ensuring the camera looks ahead of the aircraft.
+ */
 function updateCamera() {
     if (!aircraftSystem || !aircraftSystem.aircraft) return;
     
@@ -360,6 +385,11 @@ window.flightTest = function() {
     console.log(`Velocity: ${aircraftSystem.velocity.x.toFixed(1)}, ${aircraftSystem.velocity.y.toFixed(1)}, ${aircraftSystem.velocity.z.toFixed(1)}`);
 };
 
+/**
+ * Updates the game UI with current aircraft metrics and adjusts the score based on speed and banking performance.
+ *
+ * Displays speed, altitude, score, bank angle, G-force, and stall warning in the UI. Increases the score according to speed and awards bonus points for coordinated banking maneuvers.
+ */
 function updateUI() {
     if (!aircraftSystem) return;
     

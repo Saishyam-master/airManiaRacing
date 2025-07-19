@@ -137,8 +137,11 @@ export class AircraftControls {
 }
 
 /**
- * Alternative simpler control setup function (like your example)
- * @param {Object} aircraftSystem - The aircraft system object
+ * Sets up a simple keyboard-based control scheme for an aircraft system, mapping WASD and Space keys to throttle, pitch, yaw, and roll inputs.
+ * 
+ * Updates the provided aircraft system's control properties in real time based on key presses, applying fixed input speeds and a throttle boost when Space is held.
+ * 
+ * @param {Object} aircraftSystem - The aircraft system object whose controls will be updated.
  */
 export function setupSimpleControls(aircraftSystem) {
     const keys = {
@@ -155,6 +158,11 @@ export function setupSimpleControls(aircraftSystem) {
     const rollSpeed = 0.03;
     const throttleSpeed = 1.0;
     
+    /**
+     * Updates the aircraft system's control inputs based on the current state of pressed keys.
+     *
+     * Applies throttle, pitch, yaw, and roll values directly to the aircraft system using fixed speeds and a boost multiplier if the Space key is pressed. No action is taken if the aircraft system or its aircraft property is missing.
+     */
     function updateControls() {
         if (!aircraftSystem || !aircraftSystem.aircraft) return;
         
