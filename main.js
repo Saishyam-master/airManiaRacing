@@ -1,16 +1,19 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { Environment } from './environment.js';
+import { Environment } from './environment.js'; // Using clean environment (renamed)
 import { AircraftSystem } from './aircraft-system.js';
+import { AircraftControls } from './controls.js';
+import { DebugGrid } from './grid.js';
 
 // Game state
-let scene, camera, renderer, aircraftSystem;
+let scene, camera, renderer, aircraftSystem, debugGrid;
 let gameStarted = false;
-let keys = {};
+let controls; // New controls system
 let speed = 0;
 let altitude = 500;
 let score = 0;
 let environment;
+let frameCount = 0;
 
 // Jet display state
 let jetDisplayScene, jetDisplayCamera, jetDisplayRenderer, jetModel;
@@ -47,9 +50,17 @@ async function init() {
     environment = new Environment(scene);
     await environment.init();
 
+    // Create and initialize invisible debug grid system
+    debugGrid = new DebugGrid(scene, 16000); // 4x world size
+    debugGrid.createGrid();
+
     // Create aircraft system
     aircraftSystem = new AircraftSystem(scene, environment);
     await aircraftSystem.init();
+
+    // Initialize controls
+    controls = new AircraftControls();
+    console.log('Controls system initialized');
 
     // Setup event listeners
     setupEventListeners();
@@ -62,15 +73,6 @@ async function init() {
 }
 
 function setupEventListeners() {
-    // Keyboard events
-    document.addEventListener('keydown', (event) => {
-        keys[event.code] = true;
-    });
-
-    document.addEventListener('keyup', (event) => {
-        keys[event.code] = false;
-    });
-
     // Start button
     document.getElementById('startButton').addEventListener('click', startGame);
 
@@ -85,6 +87,7 @@ function setupUI() {
 }
 
 function startGame() {
+    console.log('Starting game...');
     gameStarted = true;
     
     // Stop jet display animation
@@ -96,15 +99,32 @@ function startGame() {
     // Show game UI
     document.getElementById('ui').classList.add('visible');
     
-    // Start game loop
-    gameLoop();
+    console.log('Game started, animate loop will handle updates');
 }
 
 function gameLoop() {
-    if (!gameStarted || !aircraftSystem) return;
+    frameCount++;
+    
+    if (!gameStarted || !aircraftSystem || !controls) {
+        if (frameCount % 60 === 0) { // Log every second
+            console.log('Game loop early return:', { gameStarted, aircraftSystem: !!aircraftSystem, controls: !!controls });
+        }
+        return;
+    }
 
-    // Get input for aircraft
-    const input = getInputState();
+    // Log every 60 frames (once per second at 60fps)
+    if (frameCount % 60 === 0) {
+        console.log('Game loop running, frame:', frameCount);
+    }
+
+    // Get input from controls system
+    const input = controls.getInputState();
+    
+    // Debug: Log input if any keys are pressed
+    if (controls.hasInput()) {
+        console.log('Active input detected:', input);
+        console.log('Pressed keys:', controls.getPressedKeys());
+    }
     
     // Update aircraft system
     const deltaTime = 1/60; // Assuming 60 FPS
@@ -115,18 +135,6 @@ function gameLoop() {
     
     // Update UI with aircraft metrics
     updateUI();
-}
-
-function getInputState() {
-    const isBoosting = keys['Space'];
-    const boostMultiplier = isBoosting ? 1.5 : 1.0;
-    
-    return {
-        throttle: keys['KeyW'] ? 1.0 * boostMultiplier : (keys['KeyS'] ? -0.5 : 0),
-        pitch: keys['KeyW'] ? -0.5 : (keys['KeyS'] ? 0.5 : 0),
-        yaw: keys['KeyA'] ? -1.0 : (keys['KeyD'] ? 1.0 : 0),
-        roll: keys['KeyA'] ? 0.5 : (keys['KeyD'] ? -0.5 : 0)
-    };
 }
 
 function updateCamera() {
@@ -216,6 +224,142 @@ window.cameraDebug = {
 
 console.log('Camera debug available: cameraDebug.setBehind(), cameraDebug.setFront(), cameraDebug.setLeft(), cameraDebug.setRight()');
 
+// Debug controls system with proper encapsulation
+window.controlsDebug = {
+    testInput: () => {
+        if (controls) {
+            const input = controls.getInputState();
+            console.log('Current control input:', input);
+            console.log('Pressed keys:', controls.getPressedKeys());
+            console.log('Has input:', controls.hasInput());
+            return input;
+        } else {
+            console.log('Controls not initialized');
+        }
+    },
+    forceThrust: () => {
+        if (aircraftSystem) {
+            const testInput = { throttle: 1.0, pitch: 0, yaw: 0, roll: 0 };
+            aircraftSystem.update(1/60, testInput);
+            console.log('Forced thrust input');
+        }
+    },
+    getAircraftStatus: () => {
+        if (aircraftSystem) {
+            const metrics = aircraftSystem.getMetrics();
+            console.log('Aircraft status:', metrics);
+            console.log('Aircraft position:', aircraftSystem.aircraft?.position);
+            console.log('Aircraft velocity:', aircraftSystem.velocity);
+        }
+    },
+    enableDebug: () => {
+        if (controls) {
+            controls.setDebug(true);
+            console.log('Controls debug enabled');
+        }
+    },
+    disableDebug: () => {
+        if (controls) {
+            controls.setDebug(false);
+            console.log('Controls debug disabled');
+        }
+    }
+};
+
+console.log('Controls debug available: controlsDebug.testInput(), controlsDebug.forceThrust(), controlsDebug.getAircraftStatus(), controlsDebug.enableDebug(), controlsDebug.disableDebug()');
+
+// Quick test function to verify everything is connected
+window.quickTest = function() {
+    console.log('=== QUICK TEST ===');
+    console.log('Game started:', gameStarted);
+    console.log('Aircraft system:', !!aircraftSystem);
+    console.log('Controls system:', !!controls);
+    console.log('Frame count:', frameCount);
+    
+    if (controls) {
+        console.log('Testing controls...');
+        const input = controls.getInputState();
+        console.log('Current input:', input);
+        
+        // FIXED: Use proper encapsulation methods
+        controls.simulateKeyPress('KeyW');
+        const inputWithW = controls.getInputState();
+        console.log('Input with W pressed:', inputWithW);
+        controls.simulateKeyRelease('KeyW');
+    }
+    
+    if (aircraftSystem) {
+        console.log('Aircraft position:', aircraftSystem.aircraft?.position);
+        console.log('Aircraft velocity:', aircraftSystem.velocity);
+        
+        // Give aircraft some initial forward velocity to help with testing
+        aircraftSystem.velocity.set(0, 0, -10); // Forward velocity
+        console.log('Set initial forward velocity');
+    }
+    
+    console.log('=== END TEST ===');
+};
+
+// Test function to give aircraft initial velocity
+window.giveAircraftVelocity = function(x = 0, y = 2, z = -15) {
+    if (aircraftSystem) {
+        aircraftSystem.velocity.set(x, y, z);
+        console.log('Aircraft velocity set to:', x, y, z);
+    }
+};
+
+// Test different forward directions to fix movement
+window.testForwardDirections = function() {
+    if (!aircraftSystem || !aircraftSystem.aircraft) {
+        console.log('Aircraft not available');
+        return;
+    }
+    
+    console.log('Testing different forward directions...');
+    console.log('Current aircraft rotation:', aircraftSystem.aircraft.rotation);
+    
+    // Test different forward vectors
+    const directions = [
+        { name: 'Forward -Z', vector: new THREE.Vector3(0, 0, -1) },
+        { name: 'Forward +Z', vector: new THREE.Vector3(0, 0, 1) },
+        { name: 'Forward -X', vector: new THREE.Vector3(-1, 0, 0) },
+        { name: 'Forward +X', vector: new THREE.Vector3(1, 0, 0) }
+    ];
+    
+    directions.forEach(dir => {
+        const worldDirection = dir.vector.clone();
+        worldDirection.applyQuaternion(aircraftSystem.aircraft.quaternion);
+        console.log(`${dir.name}: local ${dir.vector.x}, ${dir.vector.y}, ${dir.vector.z} -> world ${worldDirection.x.toFixed(2)}, ${worldDirection.y.toFixed(2)}, ${worldDirection.z.toFixed(2)}`);
+    });
+};
+
+// Banking mechanics explanation and test
+window.bankingTutorial = function() {
+    console.log('🛩️ REALISTIC BANKING TUTORIAL:');
+    console.log('1. Use A/D to BANK (roll) the aircraft');
+    console.log('2. Banking creates TURNING FORCE (just like real planes!)');
+    console.log('3. Use rudder (A/D + Shift) for COORDINATED TURNS');
+    console.log('4. Too much banking reduces LIFT (realistic!)');
+    console.log('5. Watch G-FORCE - high G can cause problems');
+    console.log('6. Stall speed: Below 50 km/h = loss of control');
+    console.log('7. Banking + Speed = Beautiful coordinated turns');
+    console.log('');
+    console.log('Try: W for power + A to bank left + gentle rudder');
+};
+
+window.flightTest = function() {
+    if (!aircraftSystem) return;
+    
+    const metrics = aircraftSystem.getMetrics();
+    console.log('📊 FLIGHT DATA:');
+    console.log(`Speed: ${metrics.speed} km/h`);
+    console.log(`Bank Angle: ${metrics.bankAngle}°`);
+    console.log(`G-Force: ${metrics.gForce}`);
+    console.log(`Turn Rate: ${metrics.turnRate}°/sec`);
+    console.log(`Stall Warning: ${metrics.stallWarning ? 'YES' : 'NO'}`);
+    console.log(`Velocity: ${aircraftSystem.velocity.x.toFixed(1)}, ${aircraftSystem.velocity.y.toFixed(1)}, ${aircraftSystem.velocity.z.toFixed(1)}`);
+};
+
 function updateUI() {
     if (!aircraftSystem) return;
     
@@ -224,10 +368,25 @@ function updateUI() {
     document.getElementById('speed').textContent = `Speed: ${metrics.speed} km/h`;
     document.getElementById('altitude').textContent = `Altitude: ${metrics.altitude} m`;
     document.getElementById('score').textContent = `Score: ${Math.round(score)}`;
+    document.getElementById('bankAngle').textContent = `Bank: ${metrics.bankAngle}°`;
+    document.getElementById('gForce').textContent = `G-Force: ${metrics.gForce}`;
     
-    // Update score based on speed and time
+    // Show stall warning
+    const stallWarning = document.getElementById('stallWarning');
+    if (metrics.stallWarning) {
+        stallWarning.style.display = 'block';
+    } else {
+        stallWarning.style.display = 'none';
+    }
+    
+    // Update score based on speed and banking performance
     if (metrics.speed > 0) {
         score += metrics.speed * 0.001;
+        
+        // Bonus points for coordinated turns (banking without excessive G-force)
+        if (Math.abs(metrics.bankAngle) > 15 && metrics.gForce < 2.5) {
+            score += Math.abs(metrics.bankAngle) * 0.01; // Banking bonus
+        }
     }
 }
 
