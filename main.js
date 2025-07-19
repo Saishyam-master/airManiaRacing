@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { Environment } from './environment.js';
+import { Environment } from './environment.js'; // Using clean environment (renamed)
 import { AircraftSystem } from './aircraft-system.js';
 import { AircraftControls } from './controls.js';
+import { DebugGrid } from './grid.js';
 
 // Game state
-let scene, camera, renderer, aircraftSystem;
+let scene, camera, renderer, aircraftSystem, debugGrid;
 let gameStarted = false;
 let controls; // New controls system
 let speed = 0;
@@ -48,6 +49,10 @@ async function init() {
     // Create and initialize environment
     environment = new Environment(scene);
     await environment.init();
+
+    // Create and initialize invisible debug grid system
+    debugGrid = new DebugGrid(scene, 16000); // 4x world size
+    debugGrid.createGrid();
 
     // Create aircraft system
     aircraftSystem = new AircraftSystem(scene, environment);

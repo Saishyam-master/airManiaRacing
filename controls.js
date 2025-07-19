@@ -22,8 +22,8 @@ export class AircraftControls {
             this.keys[event.code] = true;
             if (this.debug) console.log('Control key pressed:', event.code);
             
-            // Prevent default for WASD and Space to avoid page scrolling
-            if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space'].includes(event.code)) {
+            // Prevent default for WASD, Space, and Arrow keys to avoid page scrolling
+            if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ArrowUp', 'ArrowDown'].includes(event.code)) {
                 event.preventDefault();
             }
         });
@@ -69,11 +69,11 @@ export class AircraftControls {
             input.throttle = -0.5 * this.throttleSensitivity;
         }
         
-        // Pitch (W/S also affect pitch for realistic flight) - apply sensitivity
-        if (this.keys['KeyW']) {
-            input.pitch = -0.3 * this.pitchSensitivity; // Nose down for speed
-        } else if (this.keys['KeyS']) {
-            input.pitch = 0.3 * this.pitchSensitivity; // Nose up for climb/brake
+        // Arrow Key Pitch Controls (dedicated pitch control) - apply sensitivity
+        if (this.keys['ArrowUp']) {
+            input.pitch = -0.8 * this.pitchSensitivity; // Nose up (negative pitch)
+        } else if (this.keys['ArrowDown']) {
+            input.pitch = 0.8 * this.pitchSensitivity; // Nose down (positive pitch)
         }
         
         // Yaw (A/D for turning) - apply sensitivity
@@ -83,11 +83,11 @@ export class AircraftControls {
             input.yaw = 1.0 * this.yawSensitivity; // Turn right
         }
         
-        // Roll (A/D for banking) - FIXED: corrected signs and apply sensitivity
+        // Roll (A/D for banking) - CORRECTED: A is positive roll, D is negative roll
         if (this.keys['KeyA']) {
-            input.roll = -0.5 * this.rollSensitivity; // Bank left (negative)
+            input.roll = 0.5 * this.rollSensitivity; // Bank left (positive)
         } else if (this.keys['KeyD']) {
-            input.roll = 0.5 * this.rollSensitivity; // Bank right (positive)
+            input.roll = -0.5 * this.rollSensitivity; // Bank right (negative)
         }
         
         return input;
@@ -98,7 +98,7 @@ export class AircraftControls {
      * @returns {boolean}
      */
     hasInput() {
-        return this.keys['KeyW'] || this.keys['KeyS'] || this.keys['KeyA'] || this.keys['KeyD'] || this.keys['Space'];
+        return this.keys['KeyW'] || this.keys['KeyS'] || this.keys['KeyA'] || this.keys['KeyD'] || this.keys['Space'] || this.keys['ArrowUp'] || this.keys['ArrowDown'];
     }
     
     /**

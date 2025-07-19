@@ -23,7 +23,7 @@ export class AircraftSystem {
         this.mass = 1000;
         
         // Control parameters - realistic flight model
-        this.pitchSensitivity = 0.03; 
+        this.pitchSensitivity = 0.08; // Increased for responsive arrow key pitch control
         this.yawSensitivity = 0.02; // Reduced for more realistic rudder authority
         this.rollSensitivity = 0.05; // Increased for responsive banking
         
@@ -198,7 +198,8 @@ export class AircraftSystem {
         // Banking creates turning force (this is how real aircraft turn!)
         if (Math.abs(this.bankAngle) > 0.1 && speed > this.stallSpeed) {
             // Turn rate is proportional to bank angle and speed
-            this.turnRate = Math.sin(this.bankAngle) * speed * 0.0008;
+            // FIXED: Negative sign to correct travel direction
+            this.turnRate = -Math.sin(this.bankAngle) * speed * 0.0008;
             
             // G-force increases with bank angle
             this.gForce = 1.0 / Math.cos(this.bankAngle);
@@ -211,7 +212,7 @@ export class AircraftSystem {
         }
         
         // Adverse yaw effect - aircraft naturally yaws opposite to roll direction
-        const adverseYaw = -rollInput * 0.3;
+        const adverseYaw = rollInput * 0.3; // FIXED: Removed negative sign
         
         // Coordinated turn requires rudder input to counteract adverse yaw
         const rudderInput = this.controls.yaw;
@@ -221,6 +222,11 @@ export class AircraftSystem {
         this.angularVelocity.x = this.controls.pitch * this.pitchSensitivity;
         this.angularVelocity.y += netYaw; // Add to existing turn rate
         this.angularVelocity.z = this.bankAngle * 0.5; // Bank angle affects roll rate
+        
+        // Debug pitch input (remove after testing)
+        if (Math.abs(this.controls.pitch) > 0.1) {
+            console.log('Pitch input:', this.controls.pitch, 'Angular velocity X:', this.angularVelocity.x);
+        }
     }
 
     updatePhysics(deltaTime) {
@@ -255,8 +261,8 @@ export class AircraftSystem {
             
             // Banking creates horizontal turning force
             if (Math.abs(this.bankAngle) > 0.1) {
-                const bankingForce = up.clone()
-                    .cross(forward)
+                const bankingForce = forward.clone()
+                    .cross(up)
                     .multiplyScalar(liftMagnitude * Math.sin(this.bankAngle) * 0.5);
                 this.acceleration.add(bankingForce);
             }
