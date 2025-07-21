@@ -359,8 +359,18 @@ export class AircraftSystem {
     }
 
     onCrash() {
-        // Override this method to handle crash events
-        console.log('Aircraft has crashed! Implement game over logic here.');
+        // Trigger crash effects if available
+        if (window.crashEffects) {
+            const crashPosition = this.aircraft.position.clone();
+            const crashSeverity = Math.max(30, this.velocity.length() * 5); // Base severity of 30, scaled by speed
+            console.log(`Triggering crash effects at position:`, crashPosition, `severity: ${crashSeverity}`);
+            window.crashEffects.triggerAircraftCrash(crashPosition, crashSeverity);
+        } else {
+            console.log('Crash effects system not available');
+        }
+        
+        // Additional crash logic can be added here
+        console.log('Aircraft has crashed! Game over logic triggered.');
     }
 
     // Get aircraft metrics for UI display
