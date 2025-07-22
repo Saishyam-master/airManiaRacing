@@ -10,8 +10,8 @@ export class CrashEffects {
         
         // Particle system properties
         this.smokeTexture = null;
-        this.particleCount = 200;
-        this.smokeLifetime = 5.0; // seconds
+        this.particleCount = 150; // Reduced for cleaner stream
+        this.smokeLifetime = 3.0; // Shorter lifetime - 3 seconds instead of 5
         this.particleStartTime = [];
         
         console.log('Smoke-only Crash Effects system initialized');
@@ -31,17 +31,17 @@ export class CrashEffects {
         return new Promise((resolve, reject) => {
             const loader = new THREE.TextureLoader();
             loader.load(
-                'assets/smoke.png', // Correct path to smoke texture
+                'visuals/smoke.png', // Correct path to smoke texture
                 (texture) => {
                     this.smokeTexture = texture;
-                    console.log('Smoke texture loaded successfully');
+                    console.log('Smoke texture loaded successfully from visuals/smoke.png');
                     resolve();
                 },
                 (progress) => {
                     console.log('Loading smoke texture:', (progress.loaded / progress.total * 100) + '%');
                 },
                 (error) => {
-                    console.error('Error loading smoke texture:', error);
+                    console.error('Error loading smoke texture from visuals/smoke.png:', error);
                     // Create fallback texture if smoke.png not found
                     this.createFallbackTexture();
                     resolve();
@@ -280,22 +280,22 @@ export class CrashEffects {
             
             if (age > this.smokeLifetime) {
                 // Restart particle
-                positions[i * 3] = (Math.random() - 0.5) * 6;
+                positions[i * 3] = (Math.random() - 0.5) * 4; // Tighter spawn area
                 positions[i * 3 + 1] = 0;
-                positions[i * 3 + 2] = (Math.random() - 0.5) * 6;
+                positions[i * 3 + 2] = (Math.random() - 0.5) * 4;
                 this.particleStartTime[i] = currentTime;
-                sizes[i] = Math.random() * 15 + 10;
+                sizes[i] = Math.random() * 12 + 8; // Smaller initial size
             } else {
-                // Update particle position
-                positions[i * 3] += this.smokeVelocities[i * 3] * deltaTime;
-                positions[i * 3 + 1] += this.smokeVelocities[i * 3 + 1] * deltaTime;
-                positions[i * 3 + 2] += this.smokeVelocities[i * 3 + 2] * deltaTime;
+                // Update particle position - more upward focus
+                positions[i * 3] += this.smokeVelocities[i * 3] * deltaTime * 0.7; // Reduced horizontal drift
+                positions[i * 3 + 1] += this.smokeVelocities[i * 3 + 1] * deltaTime * 1.2; // Increased upward velocity
+                positions[i * 3 + 2] += this.smokeVelocities[i * 3 + 2] * deltaTime * 0.7;
                 
-                // Grow particle size over time for realistic smoke expansion
-                sizes[i] += deltaTime * 8;
+                // Grow particle size over time but slower for cleaner stream
+                sizes[i] += deltaTime * 6; // Reduced from 8
                 
-                // Add wind effect
-                positions[i * 3] += Math.sin(currentTime + i) * deltaTime * 0.7;
+                // Lighter wind effect for more controlled stream
+                positions[i * 3] += Math.sin(currentTime + i) * deltaTime * 0.4; // Reduced from 0.7
             }
         }
         

@@ -234,11 +234,24 @@ class RacingUI {
             const speed = this.aircraftSystem.velocity.length() * 3.6; // Convert to km/h
             const altitude = Math.round(this.aircraftSystem.aircraft.position.y);
             const throttle = Math.round(this.aircraftSystem.currentThrottle * 100);
+            const crashed = this.aircraftSystem.crashed;
             
             this.elements.aircraftSpeed.textContent = Math.round(speed);
             this.elements.aircraftAltitude.textContent = altitude;
             this.elements.aircraftThrottle.textContent = throttle;
             this.elements.speedDisplay.textContent = Math.round(speed);
+            
+            // Show crash status
+            if (crashed) {
+                this.elements.aircraftSpeed.style.color = '#ff0000';
+                this.elements.aircraftAltitude.style.color = '#ff0000';
+                this.elements.nextCheckpoint.textContent = 'CRASHED - Press R to Reset';
+                this.elements.nextCheckpoint.style.color = '#ff0000';
+            } else {
+                this.elements.aircraftSpeed.style.color = '#ff00ff';
+                this.elements.aircraftAltitude.style.color = '#ff00ff';
+                this.elements.nextCheckpoint.style.color = '#00ffff';
+            }
         }
         
         // Update race timing

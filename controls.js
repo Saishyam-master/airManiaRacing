@@ -49,7 +49,7 @@ export class AircraftControls {
     
     /**
      * Get current input state for aircraft
-     * @returns {Object} Input state with throttle, pitch, yaw, roll
+     * @returns {Object} Input state with throttle, pitch, yaw, roll, reset
      */
     getInputState() {
         const isBoosting = this.keys['Space'];
@@ -59,7 +59,8 @@ export class AircraftControls {
             throttle: 0,
             pitch: 0,
             yaw: 0,
-            roll: 0
+            roll: 0,
+            reset: this.keys['KeyR'] || false // Add reset key R
         };
         
         // Throttle (W = forward, S = reverse/brake) - apply sensitivity
@@ -98,7 +99,7 @@ export class AircraftControls {
      * @returns {boolean}
      */
     hasInput() {
-        return this.keys['KeyW'] || this.keys['KeyS'] || this.keys['KeyA'] || this.keys['KeyD'] || this.keys['Space'] || this.keys['ArrowUp'] || this.keys['ArrowDown'];
+        return this.keys['KeyW'] || this.keys['KeyS'] || this.keys['KeyA'] || this.keys['KeyD'] || this.keys['Space'] || this.keys['ArrowUp'] || this.keys['ArrowDown'] || this.keys['KeyR'];
     }
     
     /**
