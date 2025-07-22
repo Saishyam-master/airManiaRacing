@@ -4,9 +4,10 @@ import { Environment } from './environment.js'; // Using clean environment (rena
 import { AircraftSystem } from './aircraft-system.js';
 import { AircraftControls } from './controls.js';
 import { DebugGrid } from './grid.js';
+import { CrashEffects } from './crash-effects.js';
 
 // Game state
-let scene, camera, renderer, aircraftSystem, debugGrid;
+let scene, camera, renderer, aircraftSystem, debugGrid, crashEffects;
 let gameStarted = false;
 let controls; // New controls system
 let speed = 0;
@@ -57,6 +58,15 @@ async function init() {
     // Create aircraft system
     aircraftSystem = new AircraftSystem(scene, environment);
     await aircraftSystem.init();
+
+    // Initialize crash effects system
+    console.log('Loading crash effects...');
+    crashEffects = new CrashEffects(scene);
+    await crashEffects.init();
+    
+    // Make crash effects globally accessible for aircraft system
+    window.crashEffects = crashEffects;
+    console.log('Crash effects system initialized');
 
     // Initialize controls
     controls = new AircraftControls();
@@ -129,6 +139,11 @@ function gameLoop() {
     // Update aircraft system
     const deltaTime = 1/60; // Assuming 60 FPS
     aircraftSystem.update(deltaTime, input);
+    
+    // Update crash effects
+    if (crashEffects) {
+        crashEffects.update(deltaTime);
+    }
     
     // Update camera
     updateCamera();
@@ -359,6 +374,50 @@ window.flightTest = function() {
     console.log(`Stall Warning: ${metrics.stallWarning ? 'YES' : 'NO'}`);
     console.log(`Velocity: ${aircraftSystem.velocity.x.toFixed(1)}, ${aircraftSystem.velocity.y.toFixed(1)}, ${aircraftSystem.velocity.z.toFixed(1)}`);
 };
+
+// Crash Effects Debug Functions
+window.crashDebug = {
+    testCrash: () => {
+        if (aircraftSystem && window.crashEffects) {
+            const pos = aircraftSystem.aircraft.position.clone();
+            window.crashEffects.triggerAircraftCrash(pos, 50); // Medium severity
+            console.log('🔥 Test crash triggered at aircraft position');
+        } else {
+            console.log('❌ Aircraft system or crash effects not available');
+        }
+    },
+    testBigCrash: () => {
+        if (aircraftSystem && window.crashEffects) {
+            const pos = aircraftSystem.aircraft.position.clone();
+            window.crashEffects.triggerAircraftCrash(pos, 150); // High severity
+            console.log('💥 Big crash triggered at aircraft position');
+        } else {
+            console.log('❌ Aircraft system or crash effects not available');
+        }
+    },
+    forceCrash: () => {
+        if (aircraftSystem) {
+            aircraftSystem.handleCrash();
+            console.log('⚠️ Forced aircraft crash');
+        } else {
+            console.log('❌ Aircraft system not available');
+        }
+    },
+    checkSmokeTexture: () => {
+        if (window.crashEffects && window.crashEffects.smokeTexture) {
+            console.log('✅ Smoke texture loaded successfully');
+            console.log('Texture size:', window.crashEffects.smokeTexture.image.width, 'x', window.crashEffects.smokeTexture.image.height);
+        } else {
+            console.log('❌ Smoke texture not loaded');
+        }
+    }
+};
+
+console.log('💥 Crash debug functions available:');
+console.log('  crashDebug.testCrash() - Test medium crash');
+console.log('  crashDebug.testBigCrash() - Test severe crash');
+console.log('  crashDebug.forceCrash() - Force aircraft to crash');
+console.log('  crashDebug.checkSmokeTexture() - Check if smoke texture is loaded');
 
 function updateUI() {
     if (!aircraftSystem) return;

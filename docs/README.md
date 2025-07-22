@@ -1,8 +1,81 @@
-# Documentation Index
+# Air Mania Racing - Documentation
 
-## 📁 Air Mania Racing Documentation
+This folder contains all project documentation, code reviews, and development guides.
 
-This directory contains comprehensive documentation for the Air Mania Racing project, including development progress, code review insights, and learning outcomes.
+## 📁 Documentation Structure
+
+### 📋 Core Documentation
+- **[README.md](README.md)** - Main project documentation and getting started guide
+- **[DEVELOPMENT.md](DEVELOPMENT.md)** - Complete development status and feature documentation
+
+### 🤖 AI Code Reviews
+- **[CODERABBIT_QA.md](CODERABBIT_QA.md)** - Comprehensive CodeRabbit AI review with actionable recommendations
+- **[CODERABBIT_REVIEW_REQUEST.md](CODERABBIT_REVIEW_REQUEST.md)** - Formal review request documentation
+
+### 🔧 Development Process
+- **[BRANCH_ARCHIVE.md](BRANCH_ARCHIVE.md)** - Complete branch history and cleanup documentation
+
+## 🎯 Quick Navigation
+
+### For Developers
+- **Getting Started**: See [DEVELOPMENT.md](DEVELOPMENT.md#-getting-started)
+- **Current Features**: See [DEVELOPMENT.md](DEVELOPMENT.md#-current-features)
+- **Known Issues**: See [DEVELOPMENT.md](DEVELOPMENT.md#-known-issues)
+
+### For Code Review
+- **Critical Issues**: See [CODERABBIT_QA.md](CODERABBIT_QA.md#-executive-summary)
+- **Performance Issues**: See [CODERABBIT_QA.md](CODERABBIT_QA.md#-performance-optimization-plan)
+- **Security Concerns**: See [CODERABBIT_QA.md](CODERABBIT_QA.md#-security-hardening-checklist)
+
+### For Project Management
+- **Implementation Priority**: See [CODERABBIT_QA.md](CODERABBIT_QA.md#-implementation-priority-matrix)
+- **Architecture Recommendations**: See [CODERABBIT_QA.md](CODERABBIT_QA.md#-architecture-recommendations)
+- **Branch History**: See [BRANCH_ARCHIVE.md](BRANCH_ARCHIVE.md)
+
+## 🚀 Current Status
+
+**Project Phase**: Post-merge code review and optimization  
+**Last Updated**: July 19, 2025  
+**Next Milestone**: Implement CodeRabbit recommendations
+
+### ✅ Completed
+- Banking controls system with realistic physics
+- 4x world scaling (16,000 unit terrain)
+- Invisible debug grid system
+- Comprehensive documentation
+
+### 🔄 In Progress
+- CodeRabbit recommendations implementation
+- Performance optimization
+- Memory leak fixes
+- Global namespace cleanup
+
+### 📋 Planned
+- Security hardening
+- Production readiness
+- Advanced UI integration
+- Racing features implementation
+
+## 📖 Documentation Standards
+
+All documentation follows these standards:
+- **Markdown format** for consistency
+- **Emoji headers** for quick visual navigation
+- **Code examples** with syntax highlighting
+- **Status indicators** (✅ 🔄 📋 ⚠️ 🚨)
+- **Cross-references** between documents
+
+## 🔗 External Resources
+
+- **Repository**: [airManiaRacing](https://github.com/Saishyam-master/airManiaRacing)
+- **Three.js Documentation**: [threejs.org](https://threejs.org)
+- **CodeRabbit**: AI-powered code review system
+
+---
+
+**Maintained by**: Saishyam  
+**AI Assistant**: GitHub Copilot  
+**Code Reviewer**: CodeRabbit AI
 
 ---
 
