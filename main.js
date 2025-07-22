@@ -5,6 +5,18 @@ import { AircraftSystem } from './aircraft-system.js';
 import { AircraftControls } from './controls.js';
 import { DebugGrid } from './grid.js';
 
+// Racing system imports
+if (typeof window !== 'undefined') {
+    // Browser environment - load via script tags or module system
+    const script1 = document.createElement('script');
+    script1.src = './race-manager.js';
+    document.head.appendChild(script1);
+    
+    const script2 = document.createElement('script');
+    script2.src = './ui.js';
+    document.head.appendChild(script2);
+}
+
 // Game state
 let scene, camera, renderer, aircraftSystem, debugGrid;
 let gameStarted = false;
@@ -14,6 +26,10 @@ let altitude = 500;
 let score = 0;
 let environment;
 let frameCount = 0;
+
+// Racing system
+let raceManager = null;
+let racingUI = null;
 
 // Jet display state
 let jetDisplayScene, jetDisplayCamera, jetDisplayRenderer, jetModel;
@@ -62,6 +78,28 @@ async function init() {
     controls = new AircraftControls();
     console.log('Controls system initialized');
 
+    // Initialize racing system (wait for scripts to load)
+    setTimeout(() => {
+        if (window.RaceManager && window.racingUI) {
+            raceManager = new window.RaceManager(scene, aircraftSystem);
+            racingUI = window.racingUI;
+            racingUI.setRaceManager(raceManager);
+            racingUI.setAircraftSystem(aircraftSystem);
+            console.log('Racing system initialized');
+        } else {
+            console.warn('Racing system not loaded yet, trying again...');
+            setTimeout(() => {
+                if (window.RaceManager && window.racingUI) {
+                    raceManager = new window.RaceManager(scene, aircraftSystem);
+                    racingUI = window.racingUI;
+                    racingUI.setRaceManager(raceManager);
+                    racingUI.setAircraftSystem(aircraftSystem);
+                    console.log('Racing system initialized (delayed)');
+                }
+            }, 1000);
+        }
+    }, 500);
+
     // Setup event listeners
     setupEventListeners();
 
@@ -99,6 +137,19 @@ function startGame() {
     // Show game UI
     document.getElementById('ui').classList.add('visible');
     
+    // Show racing UI
+    if (racingUI) {
+        racingUI.show();
+    }
+    
+    // Start race after 3 seconds
+    setTimeout(() => {
+        if (raceManager) {
+            raceManager.startRace();
+            console.log('Race started!');
+        }
+    }, 3000);
+    
     console.log('Game started, animate loop will handle updates');
 }
 
@@ -130,11 +181,21 @@ function gameLoop() {
     const deltaTime = 1/60; // Assuming 60 FPS
     aircraftSystem.update(deltaTime, input);
     
+    // Update racing system
+    if (raceManager) {
+        raceManager.update();
+    }
+    
     // Update camera
     updateCamera();
     
     // Update UI with aircraft metrics
     updateUI();
+    
+    // Update racing UI
+    if (racingUI) {
+        racingUI.update();
+    }
 }
 
 function updateCamera() {
