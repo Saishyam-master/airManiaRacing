@@ -23,7 +23,7 @@ export class AircraftSystem {
         this.mass = 1000;
         
         // Control parameters - realistic flight model
-        this.pitchSensitivity = 0.08; // Increased for responsive arrow key pitch control
+        this.pitchSensitivity = 0.4; // FIXED: Increased from 0.08 to fix sluggish controls
         this.yawSensitivity = 0.02; // Reduced for more realistic rudder authority
         this.rollSensitivity = 0.05; // Increased for responsive banking
         
@@ -218,8 +218,8 @@ export class AircraftSystem {
         const rudderInput = this.controls.yaw;
         const netYaw = (rudderInput * this.yawSensitivity) + adverseYaw;
         
-        // Apply pitch and corrected yaw
-        this.angularVelocity.x = this.controls.pitch * this.pitchSensitivity;
+        // FIXED: Direct input application (sensitivity already applied in controls)
+        this.angularVelocity.x = this.controls.pitch; // Remove double sensitivity
         this.angularVelocity.y += netYaw; // Add to existing turn rate
         this.angularVelocity.z = this.bankAngle * 0.5; // Bank angle affects roll rate
         
@@ -259,12 +259,19 @@ export class AircraftSystem {
             const liftForce = up.clone().multiplyScalar(effectiveLift);
             this.acceleration.add(liftForce);
             
-            // Banking creates horizontal turning force
-            if (Math.abs(this.bankAngle) > 0.1) {
-                const bankingForce = forward.clone()
-                    .cross(up)
-                    .multiplyScalar(liftMagnitude * Math.sin(this.bankAngle) * 0.5);
-                this.acceleration.add(bankingForce);
+            // FIXED: Speed-dependent banking with decoupled pitch control
+            if (Math.abs(this.bankAngle) > 0.1 && speed > 30) { // Minimum speed threshold
+                // Turn rate proportional to bank and speed (no pitch coupling)
+                this.turnRate = -Math.sin(this.bankAngle) * speed * 0.0008;
+                this.gForce = 1.0 / Math.cos(this.bankAngle);
+                this.angularVelocity.y = this.turnRate;
+            } else {
+                this.turnRate = 0;
+                this.gForce = 1.0;
+                // Banking stability - return to level when no input
+                if (Math.abs(this.controls.roll) < 0.1) {
+                    this.bankAngle *= 0.95; // Gradual return to level flight
+                }
             }
         }
         
@@ -302,13 +309,23 @@ export class AircraftSystem {
         // Update position
         this.aircraft.position.add(this.velocity.clone().multiplyScalar(deltaTime * 15)); // Slightly reduced from 20
         
-        // Update rotation with banking
-        this.aircraft.rotation.x += this.angularVelocity.x * deltaTime;
-        this.aircraft.rotation.y += this.angularVelocity.y * deltaTime;
-        this.aircraft.rotation.z = this.bankAngle; // Direct banking control for realistic look
+        // FIXED: Quaternion-based rotation to avoid gimbal lock and axis drift
+        const rotationQuaternion = new THREE.Quaternion();
+        
+        // Create rotation from current angular velocities
+        const pitchQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), this.angularVelocity.x * deltaTime);
+        const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.angularVelocity.y * deltaTime);
+        const rollQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), this.bankAngle);
+        
+        // Compose rotations in proper order: Roll -> Pitch -> Yaw
+        rotationQuaternion.multiplyQuaternions(yawQuat, pitchQuat);
+        rotationQuaternion.multiply(rollQuat);
+        
+        // Apply to aircraft
+        this.aircraft.quaternion.copy(rotationQuaternion);
         
         // Dampen angular velocity more realistically
-        this.angularVelocity.multiplyScalar(0.92); // More damping for realism
+        this.angularVelocity.multiplyScalar(0.96); // FIXED: Reduced damping from 0.92 to 0.96
     }
 
     updateAircraftMetrics() {
