@@ -5,9 +5,10 @@ import { AircraftSystem } from './aircraft-system.js';
 import { AircraftControls } from './controls.js';
 import { DebugGrid } from './grid.js';
 import { CrashEffects } from './crash-effects.js';
+import { CameraSystem } from './camera-system.js';
 
 // Game state
-let scene, camera, renderer, aircraftSystem, debugGrid, crashEffects;
+let scene, camera, renderer, aircraftSystem, debugGrid, crashEffects, cameraSystem;
 let gameStarted = false;
 let controls; // New controls system
 let speed = 0;
@@ -67,6 +68,13 @@ async function init() {
     // Make crash effects globally accessible for aircraft system
     window.crashEffects = crashEffects;
     console.log('Crash effects system initialized');
+
+    // Initialize camera system
+    cameraSystem = new CameraSystem(camera, scene, environment);
+    
+    // Make camera system globally accessible for aircraft system
+    window.cameraSystem = cameraSystem;
+    console.log('Camera system initialized');
 
     // Initialize controls
     controls = new AircraftControls();
@@ -130,6 +138,22 @@ function gameLoop() {
     // Get input from controls system
     const input = controls.getInputState();
     
+    // Handle reset input
+    if (input.reset && aircraftSystem) {
+        console.log('Reset requested by user');
+        aircraftSystem.reset();
+        // Reset camera system to follow mode
+        if (cameraSystem) {
+            cameraSystem.setFollowMode();
+        }
+        // Reset score when aircraft is reset
+        score = 0;
+        // Clear any active crash effects
+        if (crashEffects && crashEffects.isCrashActive()) {
+            crashEffects.stopCrashEffects();
+        }
+    }
+    
     // Debug: Log input if any keys are pressed
     if (controls.hasInput()) {
         console.log('Active input detected:', input);
@@ -145,52 +169,19 @@ function gameLoop() {
         crashEffects.update(deltaTime);
     }
     
-    // Update camera
-    updateCamera();
+    // Update camera system
+    if (cameraSystem && aircraftSystem.aircraft) {
+        cameraSystem.update(deltaTime, aircraftSystem.aircraft);
+    }
     
     // Update UI with aircraft metrics
     updateUI();
 }
 
-function updateCamera() {
-    if (!aircraftSystem || !aircraftSystem.aircraft) return;
-    
-    const aircraft = aircraftSystem.aircraft;
-    
-    // Try positioning camera behind aircraft in different ways
-    // The GLB model might be oriented differently than expected
-    
-    // Method 1: Try all possible "behind" positions
-    const possibleOffsets = [
-        new THREE.Vector3(0, 3, 10),   // Behind (+Z)
-        new THREE.Vector3(0, 3, -10),  // Front (-Z)
-        new THREE.Vector3(10, 3, 0),   // Right (+X)
-        new THREE.Vector3(-10, 3, 0),  // Left (-X)
-    ];
-    
-    // For now, let's try behind (+Z) and if it looks wrong, we'll try others
-    const cameraOffset = new THREE.Vector3(0, 4, 12); // Behind and slightly above
-    cameraOffset.applyQuaternion(aircraft.quaternion);
-    
-    const idealCameraPosition = aircraft.position.clone().add(cameraOffset);
-    
-    // Smooth camera movement
-    camera.position.lerp(idealCameraPosition, 0.08);
-    
-    // Look slightly ahead of the aircraft
-    const lookAhead = new THREE.Vector3(0, 0, -5); // Look forward
-    lookAhead.applyQuaternion(aircraft.quaternion);
-    const lookTarget = aircraft.position.clone().add(lookAhead);
-    
-    camera.lookAt(lookTarget);
-    
-    // Debug: Log camera and aircraft positions occasionally
-    if (Math.random() < 0.01) { // 1% chance to log
-        console.log('Aircraft pos:', aircraft.position);
-        console.log('Camera pos:', camera.position);
-        console.log('Aircraft rotation:', aircraft.rotation);
-    }
-}
+// OLD CAMERA FUNCTION - REPLACED BY CAMERA SYSTEM
+// function updateCamera() {
+//     ... (commented out - using CameraSystem now)
+// }
 
 // Debug helper - add this to console for testing camera positions
 window.cameraDebug = {
@@ -424,6 +415,27 @@ function updateUI() {
     
     const metrics = aircraftSystem.getMetrics();
     
+    // Update camera status
+    if (cameraSystem) {
+        const cameraInfo = cameraSystem.getCameraInfo();
+        const cameraElement = document.getElementById('cameraMode');
+        
+        switch(cameraInfo.mode) {
+            case 'follow':
+                cameraElement.textContent = '📹 Follow Cam';
+                cameraElement.style.color = '#88ff88';
+                break;
+            case 'crash':
+                cameraElement.textContent = '🎬 Crash Cam';
+                cameraElement.style.color = '#ff8888';
+                break;
+            case 'cinematic':
+                cameraElement.textContent = '🎥 Cinematic';
+                cameraElement.style.color = '#ffff88';
+                break;
+        }
+    }
+    
     document.getElementById('speed').textContent = `Speed: ${metrics.speed} km/h`;
     document.getElementById('altitude').textContent = `Altitude: ${metrics.altitude} m`;
     document.getElementById('score').textContent = `Score: ${Math.round(score)}`;
@@ -432,19 +444,41 @@ function updateUI() {
     
     // Show stall warning
     const stallWarning = document.getElementById('stallWarning');
-    if (metrics.stallWarning) {
-        stallWarning.style.display = 'block';
-    } else {
-        stallWarning.style.display = 'none';
-    }
+    const crashWarning = document.getElementById('crashWarning');
     
-    // Update score based on speed and banking performance
-    if (metrics.speed > 0) {
-        score += metrics.speed * 0.001;
+    if (metrics.crashed) {
+        // Hide stall warning when crashed
+        stallWarning.style.display = 'none';
+        // Show crash warning
+        crashWarning.style.display = 'block';
         
-        // Bonus points for coordinated turns (banking without excessive G-force)
-        if (Math.abs(metrics.bankAngle) > 15 && metrics.gForce < 2.5) {
-            score += Math.abs(metrics.bankAngle) * 0.01; // Banking bonus
+        // Display crash status in the UI
+        document.getElementById('speed').textContent = `Speed: CRASHED`;
+        document.getElementById('altitude').textContent = `Status: AIRCRAFT DOWN`;
+        document.getElementById('bankAngle').textContent = `Bank: --`;
+        document.getElementById('gForce').textContent = `G-Force: --`;
+        
+        // Stop score accumulation when crashed
+        console.log('Aircraft crashed - all movement halted. Press R to reset.');
+    } else {
+        // Hide crash warning when not crashed
+        crashWarning.style.display = 'none';
+        
+        // Show stall warning only when not crashed
+        if (metrics.stallWarning) {
+            stallWarning.style.display = 'block';
+        } else {
+            stallWarning.style.display = 'none';
+        }
+        
+        // Update score based on speed and banking performance (only when not crashed)
+        if (metrics.speed > 0) {
+            score += metrics.speed * 0.001;
+            
+            // Bonus points for coordinated turns (banking without excessive G-force)
+            if (Math.abs(metrics.bankAngle) > 15 && metrics.gForce < 2.5) {
+                score += Math.abs(metrics.bankAngle) * 0.01; // Banking bonus
+            }
         }
     }
 }

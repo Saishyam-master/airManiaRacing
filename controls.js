@@ -22,8 +22,8 @@ export class AircraftControls {
             this.keys[event.code] = true;
             if (this.debug) console.log('Control key pressed:', event.code);
             
-            // Prevent default for WASD, Space, and Arrow keys to avoid page scrolling
-            if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ArrowUp', 'ArrowDown'].includes(event.code)) {
+            // Prevent default for WASD, Space, Arrow keys, and R key to avoid page scrolling
+            if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ArrowUp', 'ArrowDown', 'KeyR'].includes(event.code)) {
                 event.preventDefault();
             }
         });
@@ -90,6 +90,11 @@ export class AircraftControls {
             input.roll = -0.5 * this.rollSensitivity; // Bank right (negative)
         }
         
+        // Reset functionality
+        if (this.keys['KeyR']) {
+            input.reset = true;
+        }
+        
         return input;
     }
     
@@ -98,7 +103,7 @@ export class AircraftControls {
      * @returns {boolean}
      */
     hasInput() {
-        return this.keys['KeyW'] || this.keys['KeyS'] || this.keys['KeyA'] || this.keys['KeyD'] || this.keys['Space'] || this.keys['ArrowUp'] || this.keys['ArrowDown'];
+        return this.keys['KeyW'] || this.keys['KeyS'] || this.keys['KeyA'] || this.keys['KeyD'] || this.keys['Space'] || this.keys['ArrowUp'] || this.keys['ArrowDown'] || this.keys['KeyR'];
     }
     
     /**

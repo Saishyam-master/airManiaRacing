@@ -84,12 +84,160 @@ if (this.debug && this.debugThrottle++ % 60 === 0) {
 }
 ```
 
+#### 4. Banking Axis Drift Problem
+```javascript
+// PROBLEM: Mixed rotation methods causing gimbal lock and axis drift
+updatePhysics(deltaTime) {
+    // Incremental updates for pitch and yaw
+    this.aircraft.rotation.x += this.angularVelocity.x * deltaTime;
+    this.aircraft.rotation.y += this.angularVelocity.y * deltaTime;
+    // Direct assignment for banking
+    this.aircraft.rotation.z = this.bankAngle; // This overwrites Z directly
+}
+```
+
+**Root Cause**: Mixing incremental rotation updates (x,y) with absolute rotation assignment (z), causing axis drift when banking and turning simultaneously.
+
+**Solution**: Quaternion-based rotation to avoid gimbal lock
+```javascript
+// RECOMMENDED: Use quaternion-based rotation
+updatePhysics(deltaTime) {
+    const rotationQuaternion = new THREE.Quaternion();
+    
+    // Create rotation from current angular velocities
+    const pitchQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), this.angularVelocity.x * deltaTime);
+    const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.angularVelocity.y * deltaTime);
+    const rollQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), this.bankAngle);
+    
+    // Compose rotations in proper order: Roll -> Pitch -> Yaw
+    rotationQuaternion.multiplyQuaternions(yawQuat, pitchQuat);
+    rotationQuaternion.multiply(rollQuat);
+    
+    // Apply to aircraft
+    this.aircraft.quaternion.copy(rotationQuaternion);
+}
+```
+
+#### 5. Nose Tilt-Up During Banking Problem
+```javascript
+// PROBLEM: Banking forces incorrectly coupled with pitch
+updateBankingDynamics() {
+    // Banking creates horizontal turning force
+    if (Math.abs(this.bankAngle) > 0.1) {
+        const bankingForce = forward.clone()
+            .cross(up)
+            .multiplyScalar(liftMagnitude * Math.sin(this.bankAngle) * 0.5);
+        this.acceleration.add(bankingForce); // This causes unwanted pitch coupling
+    }
+}
+```
+
+**Root Cause**: Banking forces applied incorrectly cause unwanted pitch-up moment when banking without forward thrust.
+
+**Solution**: Speed-dependent banking with decoupled pitch control
+```javascript
+// RECOMMENDED: Decoupled banking dynamics
+updateBankingDynamics() {
+    const speed = this.velocity.length();
+    const minimumSpeedForTurn = 30; // Prevent banking effects at low speeds
+    
+    if (Math.abs(this.bankAngle) > 0.1 && speed > minimumSpeedForTurn) {
+        // Turn rate proportional to bank and speed
+        this.turnRate = -Math.sin(this.bankAngle) * speed * 0.0008;
+        this.gForce = 1.0 / Math.cos(this.bankAngle);
+        this.angularVelocity.y = this.turnRate;
+    } else {
+        this.turnRate = 0;
+        this.gForce = 1.0;
+        // Add banking stability - return to level when no input
+        if (Math.abs(rollInput) < 0.1) {
+            this.bankAngle *= 0.95; // Gradual return to level flight
+        }
+    }
+    
+    // Separate pitch control (independent of banking)
+    this.angularVelocity.x = this.controls.pitch * this.pitchSensitivity;
+}
+```
+
+#### 6. Random Crash Activation Problem
+```javascript
+// PROBLEM: Only checking terrain height at aircraft center
+checkTerrainCollision() {
+    const position = this.aircraft.position;
+    const terrainHeight = this.environment.getTerrainHeightAt(position.x, position.z);
+    
+    const safetyMargin = 3;
+    if (position.y <= terrainHeight + safetyMargin) {
+        this.handleCrash(); // Triggers on center position only
+    }
+}
+```
+
+**Root Cause**: Crash detection only checks aircraft center, not wings, nose, or tail, leading to inaccurate collision detection.
+
+**Solution**: Multi-point wing-specific collision detection
+```javascript
+// RECOMMENDED: Wing-specific collision detection
+checkTerrainCollision() {
+    if (!this.aircraft || !this.environment) return;
+    
+    const position = this.aircraft.position;
+    const rotation = this.aircraft.rotation;
+    
+    // Check multiple points on aircraft (wings, nose, tail)
+    const checkPoints = [
+        { offset: new THREE.Vector3(0, 0, 0), part: 'fuselage' },
+        { offset: new THREE.Vector3(-8, -1, 0), part: 'leftWing' },
+        { offset: new THREE.Vector3(8, -1, 0), part: 'rightWing' },
+        { offset: new THREE.Vector3(0, -0.5, 4), part: 'nose' },
+        { offset: new THREE.Vector3(0, 1, -4), part: 'tail' }
+    ];
+    
+    for (const point of checkPoints) {
+        // Transform offset by aircraft rotation
+        const worldOffset = point.offset.clone();
+        worldOffset.applyEuler(rotation);
+        
+        const checkPosition = position.clone().add(worldOffset);
+        const terrainHeight = this.environment.getTerrainHeightAt(checkPosition.x, checkPosition.z);
+        
+        const safetyMargin = 1; // Reduced margin for accuracy
+        if (checkPosition.y <= terrainHeight + safetyMargin) {
+            this.handleCrash(point.part, checkPosition);
+            break;
+        }
+    }
+}
+
+// Part-specific crash handling
+handleCrash(collisionPart = 'fuselage', crashPosition = null) {
+    // Dramatic rotation based on collision part
+    switch(collisionPart) {
+        case 'leftWing':
+            this.aircraft.rotation.z = -Math.PI * 0.3; // Roll left
+            break;
+        case 'rightWing':
+            this.aircraft.rotation.z = Math.PI * 0.3; // Roll right
+            break;
+        case 'nose':
+            this.aircraft.rotation.x = Math.PI * 0.4; // Nose down
+            break;
+    }
+    
+    this.onCrash(collisionPart, crashPosition);
+}
+```
+
 ### 🎯 Action Items
 1. ✅ Implement vector caching system
 2. ✅ Create aircraft configuration object  
 3. ✅ Add debug log throttling
-4. ✅ Use object pooling for Vector3 operations
-5. ✅ **FIXED: Sluggish pitch controls issue**
+4. ✅ **FIXED: Banking axis drift with quaternion rotation**
+5. ✅ **FIXED: Nose tilt-up during banking with decoupled pitch control**
+6. ✅ **FIXED: Random crash activation with wing-specific collision detection**
+7. ✅ Use object pooling for Vector3 operations
+8. ✅ **FIXED: Sluggish pitch controls issue**
 
 #### 🛩️ Pitch Control Analysis & Fix
 
@@ -115,6 +263,40 @@ if (this.debug && this.debugThrottle++ % 60 === 0) {
 - ✅ Updated configuration system to reflect optimal values
 
 **Result**: Pitch sensitivity increased from 1.92% to 9.6% of input (5x improvement)
+
+#### 🛩️ Advanced Flight Physics Analysis & Fixes
+
+**1. Banking Axis Drift Fix (Quaternion Rotation)**
+- **Status**: ✅ **IMPLEMENTED**
+- **Impact**: Eliminates gimbal lock and axis drift during banking maneuvers
+- **Technical**: Replaced Euler rotation mixing with pure quaternion composition
+
+**2. Nose Tilt-Up During Banking Fix**
+- **Status**: ✅ **IMPLEMENTED** 
+- **Impact**: Banking no longer causes unwanted pitch coupling
+- **Technical**: Speed-dependent banking forces with decoupled pitch control
+- **Features**: 
+  - Minimum speed threshold (30 km/h) for turning
+  - Automatic return to level flight when no roll input
+  - Airspeed-scaled adverse yaw effects
+
+**3. Wing-Specific Collision Detection**
+- **Status**: ✅ **IMPLEMENTED**
+- **Impact**: Accurate, realistic crash detection for all aircraft parts
+- **Technical**: Multi-point collision checking with part-specific crash responses
+- **Features**:
+  - 5 collision points: fuselage, left wing, right wing, nose, tail
+  - Rotation-aware collision point transformation
+  - Part-specific crash animations (wing strikes roll aircraft realistically)
+  - Reduced safety margin (3→1 units) for accuracy
+  - Enhanced crash effects integration
+
+**Enhanced Crash System Benefits**:
+- ✅ **Realistic Wing Strikes**: Left wing hits cause left roll, right wing hits cause right roll
+- ✅ **Nose Strike Handling**: Nose-first crashes result in nose-down orientation
+- ✅ **Accurate Detection**: No more false crashes from center-point-only detection
+- ✅ **Better Visual Feedback**: Part-specific crash effects and positioning
+- ✅ **Debug Information**: Console logs specify which part collided for troubleshooting
 
 ---
 
@@ -880,5 +1062,240 @@ const boundingBox = new THREE.Box3().setFromObject(trackSegment);
 
 ---
 
-*Last Updated: July 17, 2025*
-*Next Update: After implementing neon enhancements or merging PR*
+## 🔧 Security Fixes & Code Quality Improvements
+
+### Fixed Issues (July 21, 2025)
+
+#### 1. Mountain Placement Algorithm - Edge Case Handling ✅
+**Fixed in environment.js**
+```javascript
+// BEFORE: Could result in 0 mountains
+const numMountains = Math.min(6, Math.floor(flatAreas.length / 800));
+
+// AFTER: Ensures at least 1 mountain, prevents repetition
+placeMountainsInFlatAreas(vertices, flatAreas, mountainRegions, heightData) {
+    if (mountainRegions.length === 0) return;
+    if (flatAreas.length === 0) return; // NEW: Handle empty flat areas
+    
+    // Ensure at least 1 mountain is placed if we have flat areas
+    const numMountains = Math.min(6, Math.max(1, Math.floor(flatAreas.length / 800)));
+    
+    // Track used mountain patterns to avoid repetition
+    const usedPatterns = new Set();
+    
+    // Pattern selection logic with repetition avoidance
+    let selectedPatternIndex;
+    do {
+        selectedPatternIndex = Math.floor(Math.random() * mountainRegions.length);
+    } while (usedPatterns.has(selectedPatternIndex) && 
+             usedPatterns.size < mountainRegions.length);
+}
+```
+
+#### 2. Server.js Security Enhancements ✅
+**Fixed CORS and File Operation Security**
+
+**CORS Configuration**: 
+```javascript
+// BEFORE: Insecure wildcard for all environments
+res.setHeader('Access-Control-Allow-Origin', '*');
+
+// AFTER: Environment-aware CORS
+const getAllowedOrigins = () => {
+    const nodeEnv = process.env.NODE_ENV || 'development';
+    
+    if (nodeEnv === 'production') {
+        // Use specific origins from environment variable
+        const allowedOrigins = process.env.ALLOWED_ORIGINS;
+        return allowedOrigins ? allowedOrigins.split(',') : ['https://yourdomain.com'];
+    } else {
+        // Allow localhost and common dev ports in development
+        return ['http://localhost:3000', 'http://127.0.0.1:3000', '*'];
+    }
+};
+```
+
+**Async File Operations**:
+```javascript
+// BEFORE: Blocking synchronous operations
+import { readFileSync, existsSync } from 'fs';
+const content = readFileSync(filePath);
+
+// AFTER: Non-blocking async operations with security
+import { readFile, access } from 'fs/promises';
+import { constants } from 'fs';
+
+// Path traversal protection
+const isPathSafe = (requestedPath, basePath) => {
+    try {
+        const resolvedPath = resolve(basePath, requestedPath);
+        const relativePath = relative(basePath, resolvedPath);
+        return !relativePath.startsWith('..') && !relativePath.includes('..');
+    } catch {
+        return false;
+    }
+};
+
+// Async file access with validation
+try {
+    await access(filePath, constants.F_OK);
+    const content = await readFile(filePath);
+} catch (error) {
+    // Proper error handling
+}
+```
+
+#### 3. Camera System - Crash Cinematics ✅
+**Added Sophisticated Crash Camera System**
+
+**Features**:
+- **Terrain-Aware Positioning**: Camera never clips into mountains
+- **Multi-Phase Cinematic Sequence**: 
+  - Phase 1: Dramatic approach (1.5s)
+  - Phase 2: Close-up inspection with orbiting (2s) 
+  - Phase 3: Pull-back overview (1.5s)
+- **Part-Specific Camera Angles**: Different angles for wing, nose, tail crashes
+- **Smooth Transitions**: Easing functions for professional feel
+
+```javascript
+// Smart camera positioning that avoids terrain
+calculateOptimalCrashViewingPosition(aircraft, collisionPart) {
+    // Adjust camera position based on collision type
+    switch(collisionPart) {
+        case 'leftWing':
+            viewingAngle = Math.PI * 0.75; // 135° from left-back
+            break;
+        case 'nose':
+            viewingAngle = Math.PI; // 180° from behind
+            viewingHeight = 8; // Lower for nose impact
+            break;
+    }
+    
+    // Ensure camera position is safe from terrain
+    let attempts = 0;
+    while (cameraY - terrainHeight < 5 && attempts < 4) {
+        viewingAngle += Math.PI * 0.25; // Try different angles
+        attempts++;
+    }
+}
+```
+
+---
+
+## 🤖 CodeRabbit AI Prompt Feature Usage Guide
+
+### Overview
+CodeRabbit's AI Prompt feature allows you to have interactive conversations with the AI about your code, enabling deeper analysis and custom review requests.
+
+### How to Use AI Prompts
+
+#### 1. **Access the AI Prompt Feature**
+- Navigate to your PR or commit in CodeRabbit
+- Look for the "🤖 Ask AI" or "AI Prompt" button
+- Click to open the interactive AI chat interface
+
+#### 2. **Effective Prompting Strategies**
+
+**Code Analysis Prompts**:
+```
+"Analyze the performance implications of the physics update loop in aircraft-system.js"
+"Review the security of the file serving logic in server.js"
+"Check for potential memory leaks in the Three.js rendering pipeline"
+```
+
+**Architecture Review Prompts**:
+```
+"Evaluate the separation of concerns in the aircraft control system"
+"Suggest improvements for the camera system architecture"
+"Review the error handling patterns across the codebase"
+```
+
+**Best Practices Prompts**:
+```
+"Identify async/await opportunities to improve performance"
+"Check for proper resource cleanup in WebGL contexts"
+"Review the use of design patterns and suggest improvements"
+```
+
+#### 3. **Advanced Prompting Techniques**
+
+**Context-Specific Analysis**:
+```
+"Focus on lines 150-200 in aircraft-system.js and analyze the quaternion rotation logic"
+"Review the mountain placement algorithm for edge cases and optimization"
+```
+
+**Comparative Analysis**:
+```
+"Compare the current camera system with standard Three.js camera controls"
+"Analyze the trade-offs between realistic and arcade flight physics"
+```
+
+**Integration Review**:
+```
+"Check how the crash detection system integrates with the camera and effects systems"
+"Review the coupling between the environment and aircraft systems"
+```
+
+#### 4. **Leveraging AI for Specific Reviews**
+
+**Security Focus**:
+```
+"Perform a security audit focusing on input validation and path traversal"
+"Review CORS configuration and suggest production-ready settings"
+```
+
+**Performance Optimization**:
+```
+"Identify bottlenecks in the render loop and suggest optimizations"
+"Analyze memory usage patterns and suggest improvements"
+```
+
+**Code Quality**:
+```
+"Review error handling consistency across modules"
+"Suggest refactoring opportunities for better maintainability"
+```
+
+### 5. **AI Prompt Best Practices**
+
+✅ **Do**:
+- Be specific about the code section or functionality
+- Ask for concrete, actionable suggestions
+- Request explanations for complex algorithms
+- Ask for alternative approaches or patterns
+
+❌ **Don't**:
+- Ask overly broad questions without context
+- Request complete code rewrites without justification
+- Ignore the AI's suggestions without consideration
+
+### Example Conversation Flow
+
+```
+User: "Review the crash camera system for production readiness"
+
+AI: "The crash camera system shows good architectural design with these strengths:
+- Proper terrain collision avoidance
+- Smooth animation transitions
+- Part-specific camera positioning
+
+However, consider these improvements:
+1. Add camera movement bounds checking
+2. Implement fallback positioning for extreme terrain
+3. Add configuration options for camera timing..."
+
+User: "Focus on the terrain collision avoidance - are there any edge cases?"
+
+AI: "Analyzing the terrain collision logic, I found these potential edge cases:
+1. Very steep terrain slopes might cause camera oscillation
+2. Multiple collision attempts could create infinite loops
+3. Camera might clip through overhangs or caves..."
+```
+
+This interactive approach allows for iterative refinement and deeper understanding of your codebase.
+
+---
+
+*Last Updated: July 21, 2025*
+*Next Update: After implementing additional crash cinematics or merging PR*
