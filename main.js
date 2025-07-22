@@ -4,6 +4,7 @@ import { Environment } from './environment.js'; // Using clean environment (rena
 import { AircraftSystem } from './aircraft-system.js';
 import { AircraftControls } from './controls.js';
 import { DebugGrid } from './grid.js';
+import { RaceTrack } from './racetrack.js';
 
 // Racing system imports
 if (typeof window !== 'undefined') {
@@ -26,6 +27,7 @@ let altitude = 500;
 let score = 0;
 let environment;
 let frameCount = 0;
+let raceTrack; // Racing track system
 
 // Racing system
 let raceManager = null;
@@ -73,6 +75,11 @@ async function init() {
     // Create aircraft system
     aircraftSystem = new AircraftSystem(scene, environment);
     await aircraftSystem.init();
+
+    // Create and initialize race track
+    raceTrack = new RaceTrack(scene, environment);
+    await raceTrack.init();
+    console.log('Race track system initialized');
 
     // Initialize controls
     controls = new AircraftControls();
@@ -191,6 +198,11 @@ function gameLoop() {
     // Update aircraft system
     const deltaTime = 1/60; // Assuming 60 FPS
     aircraftSystem.update(deltaTime, input);
+    
+    // Update race track system
+    if (raceTrack && aircraftSystem.aircraft) {
+        raceTrack.update(deltaTime, aircraftSystem.aircraft.position);
+    }
     
     // Update racing system
     if (raceManager) {
@@ -442,6 +454,19 @@ function updateUI() {
     document.getElementById('score').textContent = `Score: ${Math.round(score)}`;
     document.getElementById('bankAngle').textContent = `Bank: ${metrics.bankAngle}°`;
     document.getElementById('gForce').textContent = `G-Force: ${metrics.gForce}`;
+    
+    // Add race track information
+    if (raceTrack) {
+        const raceData = raceTrack.getRaceData();
+        document.getElementById('currentGate').textContent = `Gate: ${raceData.currentGate}/${raceData.totalGates}`;
+        
+        if (raceData.raceStarted) {
+            document.getElementById('lapTime').textContent = `Lap: ${raceData.currentLapTime.toFixed(1)}s`;
+            if (raceData.bestLapTime) {
+                document.getElementById('bestLap').textContent = `Best: ${raceData.bestLapTime.toFixed(1)}s`;
+            }
+        }
+    }
     
     // Show stall warning
     const stallWarning = document.getElementById('stallWarning');

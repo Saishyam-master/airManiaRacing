@@ -266,18 +266,6 @@ export class AircraftSystem {
             
             const liftForce = up.clone().multiplyScalar(effectiveLift);
             this.acceleration.add(liftForce);
-            
-            if (Math.abs(this.bankAngle) > 0.1 && speed > 30) {
-                this.turnRate = -Math.sin(this.bankAngle) * speed * 0.0008;
-                this.gForce = 1.0 / Math.cos(this.bankAngle);
-                this.angularVelocity.y = this.turnRate;
-            } else {
-                this.turnRate = 0;
-                this.gForce = 1.0;
-                if (Math.abs(this.controls.roll) < 0.1) {
-                    this.bankAngle *= 0.95;
-                }
-            }
         }
         
         this.acceleration.y += this.gravity * this.gForce;
@@ -303,6 +291,7 @@ export class AircraftSystem {
         
         this.aircraft.position.add(this.velocity.clone().multiplyScalar(deltaTime * 15));
         
+        // Simplified rotation using angular velocity from banking dynamics
         const rotationQuaternion = new THREE.Quaternion();
         const pitchQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), this.angularVelocity.x * deltaTime);
         const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.angularVelocity.y * deltaTime);
