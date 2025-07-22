@@ -171,6 +171,17 @@ function gameLoop() {
     // Get input from controls system
     const input = controls.getInputState();
     
+    // Handle reset input first (works even when crashed)
+    if (input.reset && aircraftSystem) {
+        console.log('Reset requested by user');
+        aircraftSystem.reset();
+        
+        // Reset racing state if needed
+        if (raceManager && !raceManager.isRacing) {
+            // Could restart race here if desired
+        }
+    }
+    
     // Debug: Log input if any keys are pressed
     if (controls.hasInput()) {
         console.log('Active input detected:', input);

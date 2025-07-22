@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { CrashEffects } from './crash-effects.js';
 
 export class AircraftSystem {
     constructor(scene, environment) {
@@ -43,6 +44,10 @@ export class AircraftSystem {
         this.isEngineOn = false;
         this.speed = 0;
         this.altitude = 0;
+        this.crashed = false; // Track crash state to prevent movement
+        
+        // Crash effects system
+        this.crashEffects = null;
         
         // Controls state
         this.controls = {
@@ -61,6 +66,12 @@ export class AircraftSystem {
             await this.loadAircraftModel();
             this.positionAircraft();
             this.createAircraftLights();
+            
+            // Initialize crash effects system
+            this.crashEffects = new CrashEffects(this.scene);
+            await this.crashEffects.init();
+            console.log('Crash effects system initialized');
+            
             console.log('Aircraft system ready');
         } catch (error) {
             console.error('Error initializing aircraft:', error);
@@ -149,13 +160,33 @@ export class AircraftSystem {
     update(deltaTime, input) {
         if (!this.aircraft) return;
         
+        // Handle crash state - prevent all updates if aircraft has crashed
+        if (this.crashed) {
+            // Only allow reset functionality when crashed
+            if (input && input.reset) {
+                console.log('Reset requested while crashed');
+                this.reset();
+            }
+            return;
+        }
+        
         this.updateControls(input);
         this.updatePhysics(deltaTime);
         this.updateAircraftMetrics();
         this.checkTerrainCollision();
+        
+        // Update crash effects if active
+        if (this.crashEffects) {
+            this.crashEffects.update(deltaTime);
+        }
     }
 
     updateControls(input) {
+        // Ignore all control inputs except reset when crashed
+        if (this.crashed) {
+            return; // No control when crashed
+        }
+        
         // Update control inputs (will be connected to input system)
         if (input) {
             this.controls.throttle = input.throttle || 0;
@@ -399,15 +430,144 @@ export class AircraftSystem {
         };
     }
 
+    checkTerrainCollision() {
+        if (!this.aircraft || !this.environment) return;
+        
+        const position = this.aircraft.position;
+        
+        // Check multiple points on aircraft (wings, nose, tail)
+        const checkPoints = [
+            // Center
+            { offset: new THREE.Vector3(0, 0, 0), part: 'fuselage' },
+            // Left wing tip
+            { offset: new THREE.Vector3(-8, -1, 0), part: 'leftWing' },
+            // Right wing tip  
+            { offset: new THREE.Vector3(8, -1, 0), part: 'rightWing' },
+            // Nose
+            { offset: new THREE.Vector3(0, -0.5, 4), part: 'nose' },
+            // Tail
+            { offset: new THREE.Vector3(0, 1, -4), part: 'tail' }
+        ];
+        
+        for (const point of checkPoints) {
+            // Transform offset by aircraft rotation using quaternion
+            const worldOffset = point.offset.clone();
+            worldOffset.applyQuaternion(this.aircraft.quaternion);
+            
+            const checkPosition = position.clone().add(worldOffset);
+            const terrainHeight = this.environment.getTerrainHeightAt(checkPosition.x, checkPosition.z);
+            
+            const safetyMargin = 1;
+            if (checkPosition.y <= terrainHeight + safetyMargin) {
+                this.handleCrash(point.part, checkPosition);
+                break;
+            }
+        }
+    }
+
+    handleCrash(collisionPart = 'fuselage', crashPosition = null) {
+        // Prevent multiple crash triggers
+        if (this.crashed) {
+            return; // Already crashed, don't process again
+        }
+        
+        console.log(`AIRCRAFT CRASH DETECTED! Collision part: ${collisionPart}`);
+        
+        // Mark aircraft as crashed to prevent all movement
+        this.crashed = true;
+        
+        // Completely stop all motion and forces
+        this.velocity.set(0, 0, 0);
+        this.acceleration.set(0, 0, 0);
+        this.angularVelocity.set(0, 0, 0);
+        this.thrust = 0;
+        this.bankAngle = 0;
+        this.turnRate = 0;
+        this.gForce = 1.0;
+        
+        // Get current aircraft orientation for realistic crash positioning
+        const currentRotation = this.aircraft.rotation.clone();
+        const crashVelocity = this.velocity.length();
+        
+        // Position aircraft on ground with realistic terrain contact
+        const terrainHeight = this.environment.getTerrainHeightAt(
+            this.aircraft.position.x, 
+            this.aircraft.position.z
+        );
+        
+        // Spatially aware crash mechanics based on collision part and impact velocity
+        const crashQuaternion = new THREE.Quaternion();
+        const impactIntensity = Math.min(crashVelocity / 50, 1.0);
+        
+        switch(collisionPart) {
+            case 'leftWing':
+                this.aircraft.position.y = terrainHeight + 3;
+                const leftWingPitch = Math.PI * (0.15 + impactIntensity * 0.25);
+                const leftWingRoll = -Math.PI * (0.4 + impactIntensity * 0.3);
+                crashQuaternion.setFromEuler(new THREE.Euler(leftWingPitch, currentRotation.y, leftWingRoll));
+                break;
+                
+            case 'rightWing':
+                this.aircraft.position.y = terrainHeight + 3;
+                const rightWingPitch = Math.PI * (0.15 + impactIntensity * 0.25);
+                const rightWingRoll = Math.PI * (0.4 + impactIntensity * 0.3);
+                crashQuaternion.setFromEuler(new THREE.Euler(rightWingPitch, currentRotation.y, rightWingRoll));
+                break;
+                
+            case 'nose':
+                this.aircraft.position.y = terrainHeight + 2;
+                const nosePitch = Math.PI * (0.5 + impactIntensity * 0.4);
+                const noseRoll = (Math.random() - 0.5) * Math.PI * 0.3;
+                crashQuaternion.setFromEuler(new THREE.Euler(nosePitch, currentRotation.y, noseRoll));
+                break;
+                
+            case 'tail':
+                this.aircraft.position.y = terrainHeight + 4;
+                const tailPitch = -Math.PI * (0.3 + impactIntensity * 0.3);
+                const tailRoll = (Math.random() - 0.5) * Math.PI * 0.2;
+                crashQuaternion.setFromEuler(new THREE.Euler(tailPitch, currentRotation.y, tailRoll));
+                break;
+                
+            default:
+                this.aircraft.position.y = terrainHeight + 3;
+                const generalPitch = Math.PI * (0.2 + impactIntensity * 0.2);
+                const generalRoll = (Math.random() - 0.5) * Math.PI * 0.4;
+                crashQuaternion.setFromEuler(new THREE.Euler(generalPitch, currentRotation.y, generalRoll));
+        }
+        
+        // Apply the calculated crash orientation
+        this.aircraft.quaternion.copy(crashQuaternion);
+        
+        console.log(`Aircraft crashed at: x=${this.aircraft.position.x.toFixed(1)}, y=${this.aircraft.position.y.toFixed(1)}, z=${this.aircraft.position.z.toFixed(1)}`);
+        
+        // Trigger crash effects
+        if (this.crashEffects) {
+            const crashSeverity = Math.min(crashVelocity * 2, 100);
+            this.crashEffects.triggerPartSpecificCrash(
+                this.aircraft.position.clone(),
+                crashSeverity,
+                collisionPart
+            );
+        }
+    }
+
     // Reset aircraft to spawn position
     reset() {
         if (!this.aircraft) return;
+        
+        // Reset crash state to allow movement again
+        this.crashed = false;
         
         this.positionAircraft();
         this.velocity.set(0, 0, 0);
         this.acceleration.set(0, 0, 0);
         this.angularVelocity.set(0, 0, 0);
         this.thrust = 0;
+        
+        // Reset flight dynamics
+        this.bankAngle = 0;
+        this.turnRate = 0;
+        this.gForce = 1.0;
         
         // Reset controls
         this.controls = {
@@ -417,6 +577,11 @@ export class AircraftSystem {
             roll: 0
         };
         
-        console.log('Aircraft reset to spawn position');
+        // Stop crash effects
+        if (this.crashEffects) {
+            this.crashEffects.stopCrashEffects();
+        }
+        
+        console.log('Aircraft reset to spawn position - crash state cleared');
     }
 }
