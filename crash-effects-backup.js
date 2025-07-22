@@ -1,7 +1,24 @@
 import * as THREE from 'three';
 
-export class CrashEffects {
-    constructor(scene) {
+export class CrashEf    createFallbackTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const context = canvas.getContext('2d');
+        
+        // Create realistic smoke gradient
+        const gradient = context.createRadialGradient(32, 32, 0, 32, 32, 32);
+        gradient.addColorStop(0, 'rgba(220, 220, 220, 0.8)'); // Light gray center
+        gradient.addColorStop(0.4, 'rgba(180, 180, 180, 0.6)'); // Medium gray
+        gradient.addColorStop(0.7, 'rgba(140, 140, 140, 0.3)'); // Darker gray
+        gradient.addColorStop(1, 'rgba(100, 100, 100, 0)'); // Transparent edge
+        
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, 64, 64);
+        
+        this.smokeTexture = new THREE.CanvasTexture(canvas);
+        console.log('Created realistic fallback smoke texture');
+    }uctor(scene) {
         this.scene = scene;
         this.crashActive = false;
         this.smokeParticles = null;
@@ -21,7 +38,7 @@ export class CrashEffects {
         try {
             await this.loadSmokeTexture();
             this.createParticleSystems();
-            console.log('Smoke-only Crash Effects ready');
+            console.log('Crash Effects ready');
         } catch (error) {
             console.error('Error initializing crash effects:', error);
         }
@@ -51,23 +68,23 @@ export class CrashEffects {
     }
 
     createFallbackTexture() {
+        // Create a simple gray circle texture as fallback
         const canvas = document.createElement('canvas');
         canvas.width = 64;
         canvas.height = 64;
-        const context = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d');
         
-        // Create realistic smoke gradient
-        const gradient = context.createRadialGradient(32, 32, 0, 32, 32, 32);
-        gradient.addColorStop(0, 'rgba(220, 220, 220, 0.8)'); // Light gray center
-        gradient.addColorStop(0.4, 'rgba(180, 180, 180, 0.6)'); // Medium gray
-        gradient.addColorStop(0.7, 'rgba(140, 140, 140, 0.3)'); // Darker gray
-        gradient.addColorStop(1, 'rgba(100, 100, 100, 0)'); // Transparent edge
+        // Create gradient circle
+        const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+        gradient.addColorStop(0, 'rgba(100, 100, 100, 1)');
+        gradient.addColorStop(0.5, 'rgba(80, 80, 80, 0.8)');
+        gradient.addColorStop(1, 'rgba(60, 60, 60, 0)');
         
-        context.fillStyle = gradient;
-        context.fillRect(0, 0, 64, 64);
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 64, 64);
         
         this.smokeTexture = new THREE.CanvasTexture(canvas);
-        console.log('Created realistic fallback smoke texture');
+        console.log('Created fallback smoke texture');
     }
 
     createParticleSystems() {
@@ -91,14 +108,14 @@ export class CrashEffects {
             positions[i * 3 + 1] = 0;
             positions[i * 3 + 2] = 0;
             
-            // Realistic gray colors for smoke
-            const gray = 0.4 + Math.random() * 0.3; // Darker, more realistic gray
+            // Random gray colors for smoke
+            const gray = 0.3 + Math.random() * 0.4;
             colors[i * 3] = gray;     // R
             colors[i * 3 + 1] = gray; // G
             colors[i * 3 + 2] = gray; // B
             
-            // Varied sizes for more realistic smoke
-            sizes[i] = Math.random() * 15 + 10;
+            // Random sizes
+            sizes[i] = Math.random() * 10 + 5;
             
             // Random velocities (upward and outward)
             velocities[i * 3] = (Math.random() - 0.5) * 2;     // X
@@ -117,24 +134,25 @@ export class CrashEffects {
         this.smokeVelocities = velocities;
         
         const material = new THREE.PointsMaterial({
-            size: 25, // Larger for more realistic smoke
+            size: 20, // Larger for more realistic smoke
             map: this.smokeTexture,
             alphaTest: 0.05, // Lower alpha test for softer edges
             transparent: true,
             vertexColors: true,
             blending: THREE.NormalBlending, // More realistic blending
             depthWrite: false,
-            opacity: 0.6 // Slightly transparent for realistic smoke
+            opacity: 0.7 // Slightly transparent for realistic smoke
         });
         
         this.smokeParticles = new THREE.Points(geometry, material);
         this.smokeParticles.visible = false;
         this.scene.add(this.smokeParticles);
         
-        console.log('Enhanced smoke particle system created');
+        console.log('Smoke particle system created');
     }
 
     // Enhanced smoke-only crash effects for realistic impact visualization
+
     triggerCrash(position) {
         console.log('SMOKE-ONLY CRASH EFFECTS TRIGGERED at position:', position);
         
@@ -156,6 +174,12 @@ export class CrashEffects {
         setTimeout(() => {
             this.stopCrashEffects();
         }, 12000); // 12 seconds of smoke effects
+    }
+
+    positionEffectsAtCrash(position) {
+        this.smokeParticles.position.copy(position);
+        this.fireParticles.position.copy(position);
+        this.explosionLight.position.copy(position);
     }
 
     triggerAircraftCrash(position, severity = 50) {
@@ -242,7 +266,7 @@ export class CrashEffects {
     resetSmokeParticles(crashPosition, intensityScale = 1.0) {
         const positions = this.smokeParticles.geometry.attributes.position.array;
         const currentTime = Date.now() / 1000;
-        const spread = 6 * intensityScale; // Scale the particle spread
+        const spread = 5 * intensityScale; // Scale the particle spread
         
         for (let i = 0; i < this.particleCount; i++) {
             // Reset positions to crash site with scaled random offset
@@ -280,22 +304,22 @@ export class CrashEffects {
             
             if (age > this.smokeLifetime) {
                 // Restart particle
-                positions[i * 3] = (Math.random() - 0.5) * 6;
+                positions[i * 3] = (Math.random() - 0.5) * 5;
                 positions[i * 3 + 1] = 0;
-                positions[i * 3 + 2] = (Math.random() - 0.5) * 6;
+                positions[i * 3 + 2] = (Math.random() - 0.5) * 5;
                 this.particleStartTime[i] = currentTime;
-                sizes[i] = Math.random() * 15 + 10;
+                sizes[i] = Math.random() * 10 + 5;
             } else {
                 // Update particle position
                 positions[i * 3] += this.smokeVelocities[i * 3] * deltaTime;
                 positions[i * 3 + 1] += this.smokeVelocities[i * 3 + 1] * deltaTime;
                 positions[i * 3 + 2] += this.smokeVelocities[i * 3 + 2] * deltaTime;
                 
-                // Grow particle size over time for realistic smoke expansion
-                sizes[i] += deltaTime * 8;
+                // Grow particle size over time
+                sizes[i] += deltaTime * 5;
                 
                 // Add wind effect
-                positions[i * 3] += Math.sin(currentTime + i) * deltaTime * 0.7;
+                positions[i * 3] += Math.sin(currentTime + i) * deltaTime * 0.5;
             }
         }
         

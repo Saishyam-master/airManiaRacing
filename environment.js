@@ -267,10 +267,15 @@ export class Environment {
 
     placeMountainsInFlatAreas(vertices, flatAreas, mountainRegions, heightData) {
         if (mountainRegions.length === 0) return;
+        if (flatAreas.length === 0) return;
         
         // Randomly select 4-6 flat areas for mountain placement
-        const numMountains = Math.min(6, Math.floor(flatAreas.length / 800));
+        // Ensure at least 1 mountain is placed if we have flat areas
+        const numMountains = Math.min(6, Math.max(1, Math.floor(flatAreas.length / 800)));
         const selectedAreas = [];
+        
+        // Track used mountain patterns to avoid repetition
+        const usedPatterns = new Set();
         
         for (let i = 0; i < numMountains; i++) {
             const randomIndex = Math.floor(Math.random() * flatAreas.length);
@@ -290,11 +295,24 @@ export class Environment {
         
         // Place mountains in selected areas with more dramatic scaling
         selectedAreas.forEach((area, mountainIndex) => {
-            const mountainRegion = mountainRegions[mountainIndex % mountainRegions.length];
+            // Select mountain pattern, avoiding repetition when possible
+            let selectedPatternIndex;
+            let attempts = 0;
+            const maxAttempts = mountainRegions.length * 2;
+            
+            do {
+                selectedPatternIndex = Math.floor(Math.random() * mountainRegions.length);
+                attempts++;
+            } while (usedPatterns.has(selectedPatternIndex) && 
+                     usedPatterns.size < mountainRegions.length && 
+                     attempts < maxAttempts);
+            
+            usedPatterns.add(selectedPatternIndex);
+            const mountainRegion = mountainRegions[selectedPatternIndex];
             this.placeMountainAt(vertices, area.x, area.y, mountainRegion);
         });
         
-        console.log(`Placed ${selectedAreas.length} additional mountain regions`);
+        console.log(`Placed ${selectedAreas.length} additional mountain regions using ${usedPatterns.size} different patterns`);
     }
 
     placeMountainAt(vertices, targetX, targetY, mountainRegion) {
